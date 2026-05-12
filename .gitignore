@@ -11,8 +11,14 @@ extension/.output/
 
 # Build output
 backend/target/
+backend/.mvn/
 *.jar
 *.class
+
+# Maven
+*.war
+*.ear
+.mvn/wrapper/maven-wrapper.jar
 
 # Environment
 .env

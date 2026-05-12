@@ -5,7 +5,7 @@ import App from '@/components/SidePanel/App';
 export default defineContentScript({
   matches: [],
   runAt: 'document_idle',
-  main(ctx) {
+  async main(ctx) {
     const ui = await createIntegratedUiContentScript(ctx, {
       position: 'overlay',
       anchor: 'body',

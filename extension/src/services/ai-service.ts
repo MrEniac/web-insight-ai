@@ -21,6 +21,11 @@ export interface AnalyzeResponse {
   error?: string;
 }
 
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
 const DEFAULT_CONFIG: AiConfig = {
   mode: 'local',
   ollamaUrl: 'http://localhost:11434',
@@ -37,14 +42,9 @@ export class AIService {
 
   async loadConfig(): Promise<AiConfig> {
     const stored = await chrome.storage.local.get([
-      'modelMode',
-      'ollamaUrl',
-      'backendUrl',
-      'cloudApiKey',
-      'cloudProvider',
-      'customApiUrl',
-      'customApiKey',
-      'selectedModel',
+      'modelMode', 'ollamaUrl', 'backendUrl',
+      'cloudApiKey', 'cloudProvider',
+      'customApiUrl', 'customApiKey', 'selectedModel',
     ]);
     this.config = {
       mode: stored.modelMode || DEFAULT_CONFIG.mode,
@@ -69,6 +69,20 @@ export class AIService {
     return this.callBackend({ type: 'github', data: { prompt, ...data } });
   }
 
+  async analyzeGitHubStream(
+    data: Record<string, unknown>,
+    onChunk: (text: string) => void,
+  ): Promise<void> {
+    await this.loadConfig();
+    const prompt = this.buildGitHubPrompt(data);
+
+    if (this.config.mode === 'local') {
+      await this.callOllamaStream(prompt, onChunk);
+    } else {
+      await this.callBackendStream({ type: 'github', data: { prompt, ...data } }, onChunk);
+    }
+  }
+
   async summarize(content: { title: string; text: string }): Promise<string> {
     await this.loadConfig();
     const prompt = `请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
@@ -79,13 +93,40 @@ export class AIService {
     return this.callBackend({ type: 'summary', data: { prompt, ...content } });
   }
 
-  async chat(messages: { role: string; content: string }[]): Promise<string> {
+  async summarizeStream(
+    content: { title: string; text: string },
+    onChunk: (text: string) => void,
+  ): Promise<void> {
+    await this.loadConfig();
+    const prompt = `请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
+
+    if (this.config.mode === 'local') {
+      await this.callOllamaStream(prompt, onChunk);
+    } else {
+      await this.callBackendStream({ type: 'summary', data: { prompt, ...content } }, onChunk);
+    }
+  }
+
+  async chat(messages: ChatMessage[]): Promise<string> {
     await this.loadConfig();
 
     if (this.config.mode === 'local') {
       return this.callOllamaChat(messages);
     }
     return this.callBackend({ type: 'chat', data: { messages } });
+  }
+
+  async chatStream(
+    messages: ChatMessage[],
+    onChunk: (text: string) => void,
+  ): Promise<void> {
+    await this.loadConfig();
+
+    if (this.config.mode === 'local') {
+      await this.callOllamaChatStream(messages, onChunk);
+    } else {
+      await this.callBackendStream({ type: 'chat', data: { messages } }, onChunk);
+    }
   }
 
   private buildGitHubPrompt(data: Record<string, unknown>): string {
@@ -112,11 +153,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        prompt,
-        stream: false,
-      }),
+      body: JSON.stringify({ model, prompt, stream: false }),
     });
 
     if (!response.ok) {
@@ -127,16 +164,52 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     return data.response;
   }
 
-  private async callOllamaChat(messages: { role: string; content: string }[]): Promise<string> {
+  private async callOllamaStream(prompt: string, onChunk: (text: string) => void): Promise<void> {
+    const model = this.config.selectedModel || 'qwen2.5:7b';
+    const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt, stream: true }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama stream request failed: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const json = JSON.parse(line);
+          if (json.response) {
+            onChunk(json.response);
+          }
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+  }
+
+  private async callOllamaChat(messages: ChatMessage[]): Promise<string> {
     const model = this.config.selectedModel || 'qwen2.5:7b';
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: false,
-      }),
+      body: JSON.stringify({ model, messages, stream: false }),
     });
 
     if (!response.ok) {
@@ -145,6 +218,49 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
 
     const data = await response.json();
     return data.message?.content || '';
+  }
+
+  private async callOllamaChatStream(
+    messages: ChatMessage[],
+    onChunk: (text: string) => void,
+  ): Promise<void> {
+    const model = this.config.selectedModel || 'qwen2.5:7b';
+    const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages, stream: true }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama chat stream request failed: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const json = JSON.parse(line);
+          if (json.message?.content) {
+            onChunk(json.message.content);
+          }
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
   }
 
   private async callBackend(request: AnalyzeRequest): Promise<string> {
@@ -160,6 +276,51 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
 
     const data = await response.json();
     return data.result;
+  }
+
+  private async callBackendStream(
+    request: AnalyzeRequest,
+    onChunk: (text: string) => void,
+  ): Promise<void> {
+    const response = await fetch(`${this.config.backendUrl}/api/ai/analyze/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...request, stream: true }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend stream request failed: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') return;
+          try {
+            const json = JSON.parse(data);
+            if (json.content) {
+              onChunk(json.content);
+            }
+          } catch {
+            onChunk(data);
+          }
+        }
+      }
+    }
   }
 
   async checkOllamaStatus(): Promise<{ available: boolean; models: string[] }> {

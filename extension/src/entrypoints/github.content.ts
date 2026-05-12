@@ -10,17 +10,31 @@ export default defineContentScript({
       import('@/services/github-extractor').then(({ GitHubExtractor }) => {
         const extractor = new GitHubExtractor();
         const data = extractor.extract();
-        if (data) {
-          console.log('[Web Insight AI] GitHub data extracted:', data);
-          import('@/services/ai-service').then(({ AIService }) => {
-            const ai = new AIService();
-            ai.analyzeGitHub(data).then((result) => {
-              import('@/components/GitHubCard/render').then(({ renderGitHubCard }) => {
-                renderGitHubCard(result);
-              });
-            });
-          });
+        if (!data) {
+          console.warn('[Web Insight AI] Could not extract GitHub data');
+          return;
         }
+
+        console.log('[Web Insight AI] GitHub data extracted:', data);
+
+        import('@/components/GitHubCard/render').then(
+          ({ renderGitHubCardLoading, renderGitHubCardStream, renderGitHubCardError }) => {
+            renderGitHubCardLoading();
+
+            import('@/services/ai-service').then(({ AIService }) => {
+              const ai = new AIService();
+              const { onChunk, onComplete } = renderGitHubCardStream();
+
+              ai.analyzeGitHubStream(data, onChunk)
+                .then(() => {
+                  onComplete();
+                })
+                .catch((err: Error) => {
+                  renderGitHubCardError(err.message);
+                });
+            });
+          },
+        );
       });
     };
 
