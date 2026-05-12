@@ -1,0 +1,32 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Dependencies
+node_modules/
+extension/node_modules/
+extension/dist/
+extension/.output/
+
+# Build output
+backend/target/
+*.jar
+*.class
+
+# Environment
+.env
+.env.local
+*.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+*.tmp
+*.swp
