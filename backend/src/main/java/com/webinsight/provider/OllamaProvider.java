@@ -7,8 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Sinks;
 
 import java.util.List;
 import java.util.Map;
@@ -28,10 +28,12 @@ public class OllamaProvider implements AiModelProvider {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final WebClient webClient;
 
-    public OllamaProvider(RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public OllamaProvider(RestTemplate restTemplate, ObjectMapper objectMapper, WebClient.Builder webClientBuilder) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
+        this.webClient = webClientBuilder.build();
     }
 
     @Override
@@ -71,55 +73,29 @@ public class OllamaProvider implements AiModelProvider {
         String useModel = (model != null && !model.isEmpty()) ? model : defaultModel;
         log.info("Ollama generateStream with model: {}", useModel);
 
-        Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
+        Map<String, Object> body = Map.of(
+                "model", useModel,
+                "prompt", prompt,
+                "stream", true
+        );
 
-        new Thread(() -> {
-            try {
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-
-                Map<String, Object> body = Map.of(
-                        "model", useModel,
-                        "prompt", prompt,
-                        "stream", true
-                );
-
-                SimpleClientHttpRequestWithFactory factory = new SimpleClientHttpRequestWithFactory(timeout * 1000);
-                RestTemplate streamRestTemplate = new RestTemplate(factory);
-
-                HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
-
-                ResponseEntity<String> response = streamRestTemplate.exchange(
-                        ollamaUrl + "/api/generate",
-                        HttpMethod.POST,
-                        request,
-                        String.class
-                );
-
-                String[] lines = response.getBody().split("\n");
-                for (String line : lines) {
-                    if (line.trim().isEmpty()) continue;
+        return webClient.post()
+                .uri(ollamaUrl + "/api/generate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .filter(line -> !line.trim().isEmpty())
+                .mapNotNull(line -> {
                     try {
                         JsonNode json = objectMapper.readTree(line);
-                        String text = json.path("response").asText();
-                        if (!text.isEmpty()) {
-                            sink.tryEmitNext(text);
-                        }
-                        if (json.path("done").asBoolean()) {
-                            sink.tryEmitComplete();
-                            return;
-                        }
-                    } catch (Exception ignored) {
+                        if (json.path("done").asBoolean()) return null;
+                        return json.path("response").asText("");
+                    } catch (Exception e) {
+                        return null;
                     }
-                }
-                sink.tryEmitComplete();
-            } catch (Exception e) {
-                log.error("Ollama stream failed: {}", e.getMessage());
-                sink.tryEmitError(e);
-            }
-        }).start();
-
-        return sink.asFlux();
+                })
+                .filter(text -> text != null && !text.isEmpty());
     }
 
     @Override
@@ -162,59 +138,33 @@ public class OllamaProvider implements AiModelProvider {
     public Flux<String> chatStream(List<ChatMessage> messages, String model) {
         String useModel = (model != null && !model.isEmpty()) ? model : defaultModel;
 
-        Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
+        List<Map<String, String>> messageList = messages.stream()
+                .map(m -> Map.of("role", m.role(), "content", m.content()))
+                .toList();
 
-        new Thread(() -> {
-            try {
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<String, Object> body = Map.of(
+                "model", useModel,
+                "messages", messageList,
+                "stream", true
+        );
 
-                List<Map<String, String>> messageList = messages.stream()
-                        .map(m -> Map.of("role", m.role(), "content", m.content()))
-                        .toList();
-
-                Map<String, Object> body = Map.of(
-                        "model", useModel,
-                        "messages", messageList,
-                        "stream", true
-                );
-
-                SimpleClientHttpRequestWithFactory factory = new SimpleClientHttpRequestWithFactory(timeout * 1000);
-                RestTemplate streamRestTemplate = new RestTemplate(factory);
-
-                HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
-
-                ResponseEntity<String> response = streamRestTemplate.exchange(
-                        ollamaUrl + "/api/chat",
-                        HttpMethod.POST,
-                        request,
-                        String.class
-                );
-
-                String[] lines = response.getBody().split("\n");
-                for (String line : lines) {
-                    if (line.trim().isEmpty()) continue;
+        return webClient.post()
+                .uri(ollamaUrl + "/api/chat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .filter(line -> !line.trim().isEmpty())
+                .mapNotNull(line -> {
                     try {
                         JsonNode json = objectMapper.readTree(line);
-                        String text = json.path("message").path("content").asText();
-                        if (!text.isEmpty()) {
-                            sink.tryEmitNext(text);
-                        }
-                        if (json.path("done").asBoolean()) {
-                            sink.tryEmitComplete();
-                            return;
-                        }
-                    } catch (Exception ignored) {
+                        if (json.path("done").asBoolean()) return null;
+                        return json.path("message").path("content").asText("");
+                    } catch (Exception e) {
+                        return null;
                     }
-                }
-                sink.tryEmitComplete();
-            } catch (Exception e) {
-                log.error("Ollama chat stream failed: {}", e.getMessage());
-                sink.tryEmitError(e);
-            }
-        }).start();
-
-        return sink.asFlux();
+                })
+                .filter(text -> text != null && !text.isEmpty());
     }
 
     @Override
@@ -227,13 +177,6 @@ public class OllamaProvider implements AiModelProvider {
             return objectMapper.writeValueAsString(obj);
         } catch (Exception e) {
             throw new RuntimeException("JSON serialization failed", e);
-        }
-    }
-
-    private static class SimpleClientHttpRequestWithFactory extends SimpleClientHttpRequestFactory {
-        SimpleClientHttpRequestWithFactory(int timeoutMs) {
-            setConnectTimeout(timeoutMs);
-            setReadTimeout(timeoutMs);
         }
     }
 }

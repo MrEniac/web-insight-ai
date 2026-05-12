@@ -44,3 +44,17 @@
 
 ### 修改
 - .gitignore 增加 Maven wrapper 相关忽略规则
+
+## [2026-05-12] 后端编译修复 + 环境配置
+
+### 修复
+- OllamaProvider/OpenAiCompatibleProvider 流式方法重构：从 RestTemplate 改为 WebClient (Spring WebFlux)
+- 修复 SimpleClientHttpRequestFactory 内部类访问修饰符编译错误
+
+### 新增
+- WebClientConfig：WebClient Builder 配置 (用于 SSE 流式请求)
+- Maven settings.xml：代理配置 (127.0.0.1:7890) + 阿里云镜像
+
+### 构建
+- 后端 Maven 编译成功 (BUILD SUCCESS)
+- JDK 21 (JetBrains Runtime) + Maven 3.9.11 验证通过

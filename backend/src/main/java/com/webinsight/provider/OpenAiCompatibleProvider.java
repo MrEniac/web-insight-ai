@@ -2,14 +2,13 @@ package com.webinsight.provider;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.webinsight.model.ModelConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Sinks;
 
 import java.util.List;
 import java.util.Map;
@@ -44,10 +43,12 @@ public class OpenAiCompatibleProvider implements AiModelProvider {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final WebClient webClient;
 
-    public OpenAiCompatibleProvider(RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public OpenAiCompatibleProvider(RestTemplate restTemplate, ObjectMapper objectMapper, WebClient.Builder webClientBuilder) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
+        this.webClient = webClientBuilder.build();
     }
 
     @Override
@@ -104,63 +105,37 @@ public class OpenAiCompatibleProvider implements AiModelProvider {
     @Override
     public Flux<String> chatStream(List<ChatMessage> messages, String model) {
         ProviderConfig config = resolveProvider(model);
+        log.info("OpenAI-compatible chatStream with provider: {}, model: {}", config.providerName, config.model);
 
-        Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
+        List<Map<String, String>> messageList = messages.stream()
+                .map(m -> Map.of("role", m.role(), "content", m.content()))
+                .toList();
 
-        new Thread(() -> {
-            try {
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                headers.setBearerAuth(config.apiKey);
+        Map<String, Object> body = Map.of(
+                "model", config.model,
+                "messages", messageList,
+                "stream", true
+        );
 
-                List<Map<String, String>> messageList = messages.stream()
-                        .map(m -> Map.of("role", m.role(), "content", m.content()))
-                        .toList();
-
-                Map<String, Object> body = Map.of(
-                        "model", config.model,
-                        "messages", messageList,
-                        "stream", true
-                );
-
-                SimpleClientHttpRequestWithFactory factory = new SimpleClientHttpRequestWithFactory(120000);
-                RestTemplate streamRestTemplate = new RestTemplate(factory);
-
-                HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
-
-                ResponseEntity<String> response = streamRestTemplate.exchange(
-                        config.url + "/chat/completions",
-                        HttpMethod.POST,
-                        request,
-                        String.class
-                );
-
-                String responseBody = response.getBody();
-                if (responseBody != null) {
-                    String[] lines = responseBody.split("\n");
-                    for (String line : lines) {
-                        line = line.trim();
-                        if (!line.startsWith("data: ")) continue;
-                        String data = line.substring(6);
-                        if ("[DONE]".equals(data)) break;
-                        try {
-                            JsonNode json = objectMapper.readTree(data);
-                            String content = json.path("choices").path(0).path("delta").path("content").asText();
-                            if (!content.isEmpty()) {
-                                sink.tryEmitNext(content);
-                            }
-                        } catch (Exception ignored) {
-                        }
+        return webClient.post()
+                .uri(config.url + "/chat/completions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + config.apiKey)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .filter(line -> line.startsWith("data: "))
+                .map(line -> line.substring(6))
+                .filter(data -> !"[DONE]".equals(data))
+                .mapNotNull(data -> {
+                    try {
+                        JsonNode json = objectMapper.readTree(data);
+                        return json.path("choices").path(0).path("delta").path("content").asText("");
+                    } catch (Exception e) {
+                        return null;
                     }
-                }
-                sink.tryEmitComplete();
-            } catch (Exception e) {
-                log.error("OpenAI-compatible stream failed: {}", e.getMessage());
-                sink.tryEmitError(e);
-            }
-        }).start();
-
-        return sink.asFlux();
+                })
+                .filter(text -> text != null && !text.isEmpty());
     }
 
     @Override
@@ -198,13 +173,6 @@ public class OpenAiCompatibleProvider implements AiModelProvider {
             return objectMapper.writeValueAsString(obj);
         } catch (Exception e) {
             throw new RuntimeException("JSON serialization failed", e);
-        }
-    }
-
-    private static class SimpleClientHttpRequestWithFactory extends SimpleClientHttpRequestFactory {
-        SimpleClientHttpRequestWithFactory(int timeoutMs) {
-            setConnectTimeout(timeoutMs);
-            setReadTimeout(timeoutMs);
         }
     }
 
