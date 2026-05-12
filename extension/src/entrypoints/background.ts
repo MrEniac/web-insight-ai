@@ -1,6 +1,8 @@
 export default defineBackground(() => {
   console.log('[Web Insight AI] Background service worker started');
 
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+
   chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
       id: 'ai-summary',
@@ -12,7 +14,7 @@ export default defineBackground(() => {
       modelMode: 'local',
       ollamaUrl: 'http://localhost:11434',
       backendUrl: 'http://localhost:8080',
-      selectedModel: '',
+      selectedModel: 'qwen3.5:2b',
     });
   });
 

@@ -34,7 +34,7 @@ const DEFAULT_CONFIG: AiConfig = {
   cloudProvider: 'openai',
   customApiUrl: '',
   customApiKey: '',
-  selectedModel: '',
+  selectedModel: 'qwen3.5:2b',
 };
 
 export class AIService {
@@ -149,7 +149,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
   }
 
   private async callOllama(prompt: string): Promise<string> {
-    const model = this.config.selectedModel || 'qwen2.5:7b';
+    const model = this.config.selectedModel || 'qwen3.5:2b';
     const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -165,7 +165,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
   }
 
   private async callOllamaStream(prompt: string, onChunk: (text: string) => void): Promise<void> {
-    const model = this.config.selectedModel || 'qwen2.5:7b';
+    const model = this.config.selectedModel || 'qwen3.5:2b';
     const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -205,7 +205,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
   }
 
   private async callOllamaChat(messages: ChatMessage[]): Promise<string> {
-    const model = this.config.selectedModel || 'qwen2.5:7b';
+    const model = this.config.selectedModel || 'qwen3.5:2b';
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -224,7 +224,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     messages: ChatMessage[],
     onChunk: (text: string) => void,
   ): Promise<void> {
-    const model = this.config.selectedModel || 'qwen2.5:7b';
+    const model = this.config.selectedModel || 'qwen3.5:2b';
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

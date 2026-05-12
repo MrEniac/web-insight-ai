@@ -1,8 +1,8 @@
 import { defineConfig } from 'wxt';
-import react from '@wxt-dev/module-react';
 
 export default defineConfig({
-  modules: [react()],
+  modules: ['@wxt-dev/module-react'],
+  srcDir: 'src',
   manifest: {
     name: 'Web Insight AI',
     description: 'AI-powered browsing enhancement layer for developers',
@@ -19,6 +19,7 @@ export default defineConfig({
       'https://www.bing.com/*',
       'https://www.baidu.com/*',
       'http://localhost:11434/*',
+      'http://localhost:8080/*',
     ],
   },
   runner: {

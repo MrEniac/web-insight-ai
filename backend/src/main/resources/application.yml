@@ -28,7 +28,7 @@ spring:
 ai:
   ollama:
     url: http://localhost:11434
-    default-model: qwen2.5:7b
+    default-model: qwen3.5:2b
     timeout: 120
 
   providers:

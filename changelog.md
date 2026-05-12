@@ -70,3 +70,20 @@
 - MySQL 8.0 运行正常
 - Spring Boot 启动成功 (localhost:8080, 2.5s)
 - HikariPool 连接池初始化成功
+
+## [2026-05-13] 插件构建验证 + Ollama 集成测试
+
+### 修复
+- wxt.config.ts: 修复 module-react 导入方式（字符串引用替代函数调用）
+- wxt.config.ts: 添加 srcDir: 'src' 配置
+- wxt.config.ts: 添加 http://localhost:8080/* 到 host_permissions
+- popup 入口: 重命名 index.tsx 为 app.tsx 避免入口名冲突
+- sidepanel 入口: 从 content script 改为独立 sidepanel 页面（chrome.sidePanel API）
+- sidepanel.content.ts: 简化为消息监听器（不含 JSX）
+- ai-service.ts: 默认模型改为 qwen3.5:2b（匹配用户安装的模型）
+- application.yml: 默认模型改为 qwen3.5:2b
+
+### 验证
+- Ollama API 调用成功（qwen3.5:2b 模型响应正常）
+- 插件生产构建成功（wxt build，339KB 总大小）
+- 所有入口点正确构建：popup, sidepanel, github, search, summary, background
