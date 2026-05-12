@@ -8,7 +8,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/web_insight_ai?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
-    password: root
+    password: liaoda123
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:

@@ -58,3 +58,15 @@
 ### 构建
 - 后端 Maven 编译成功 (BUILD SUCCESS)
 - JDK 21 (JetBrains Runtime) + Maven 3.9.11 验证通过
+
+## [2026-05-12] 环境部署 + 后端启动验证
+
+### 配置
+- application.yml MySQL 密码更新为实际密码
+- 创建 MySQL 数据库 web_insight_ai (utf8mb4)
+
+### 验证
+- Redis 8.6.3 运行正常 (localhost:6379, PONG)
+- MySQL 8.0 运行正常
+- Spring Boot 启动成功 (localhost:8080, 2.5s)
+- HikariPool 连接池初始化成功
