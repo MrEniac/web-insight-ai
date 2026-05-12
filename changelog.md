@@ -87,3 +87,6 @@
 - Ollama API 调用成功（qwen3.5:2b 模型响应正常）
 - 插件生产构建成功（wxt build，339KB 总大小）
 - 所有入口点正确构建：popup, sidepanel, github, search, summary, background
+
+### 注意
+- 使用插件调用ollama会被拒绝，需要设置CORS跨域限制

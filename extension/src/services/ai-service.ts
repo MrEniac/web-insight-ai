@@ -153,7 +153,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: false }),
+      body: JSON.stringify({ model, prompt, stream: false, think: false }),
     });
 
     if (!response.ok) {
@@ -169,7 +169,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: true }),
+      body: JSON.stringify({ model, prompt, stream: true, think: false }),
     });
 
     if (!response.ok) {
@@ -209,7 +209,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: false }),
+      body: JSON.stringify({ model, messages, stream: false, think: false }),
     });
 
     if (!response.ok) {
@@ -228,7 +228,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: true }),
+      body: JSON.stringify({ model, messages, stream: true, think: false }),
     });
 
     if (!response.ok) {
@@ -253,7 +253,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
         if (!line.trim()) continue;
         try {
           const json = JSON.parse(line);
-          if (json.message?.content) {
+          if (json.message?.content && json.message?.role !== 'thinking') {
             onChunk(json.message.content);
           }
         } catch {

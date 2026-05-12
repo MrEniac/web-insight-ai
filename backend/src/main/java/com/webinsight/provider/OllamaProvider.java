@@ -10,6 +10,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,11 +45,11 @@ public class OllamaProvider implements AiModelProvider {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, Object> body = Map.of(
-                "model", useModel,
-                "prompt", prompt,
-                "stream", false
-        );
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", useModel);
+        body.put("prompt", prompt + "\n/no_think");
+        body.put("stream", false);
+        body.put("think", false);
 
         HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
 
@@ -73,11 +74,11 @@ public class OllamaProvider implements AiModelProvider {
         String useModel = (model != null && !model.isEmpty()) ? model : defaultModel;
         log.info("Ollama generateStream with model: {}", useModel);
 
-        Map<String, Object> body = Map.of(
-                "model", useModel,
-                "prompt", prompt,
-                "stream", true
-        );
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", useModel);
+        body.put("prompt", prompt + "\n/no_think");
+        body.put("stream", true);
+        body.put("think", false);
 
         return webClient.post()
                 .uri(ollamaUrl + "/api/generate")
@@ -90,7 +91,8 @@ public class OllamaProvider implements AiModelProvider {
                     try {
                         JsonNode json = objectMapper.readTree(line);
                         if (json.path("done").asBoolean()) return null;
-                        return json.path("response").asText("");
+                        String content = json.path("response").asText("");
+                        return content.isEmpty() ? null : content;
                     } catch (Exception e) {
                         return null;
                     }
@@ -110,11 +112,11 @@ public class OllamaProvider implements AiModelProvider {
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
                 .toList();
 
-        Map<String, Object> body = Map.of(
-                "model", useModel,
-                "messages", messageList,
-                "stream", false
-        );
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", useModel);
+        body.put("messages", messageList);
+        body.put("stream", false);
+        body.put("think", false);
 
         HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
 
@@ -142,11 +144,11 @@ public class OllamaProvider implements AiModelProvider {
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
                 .toList();
 
-        Map<String, Object> body = Map.of(
-                "model", useModel,
-                "messages", messageList,
-                "stream", true
-        );
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", useModel);
+        body.put("messages", messageList);
+        body.put("stream", true);
+        body.put("think", false);
 
         return webClient.post()
                 .uri(ollamaUrl + "/api/chat")
@@ -159,6 +161,8 @@ public class OllamaProvider implements AiModelProvider {
                     try {
                         JsonNode json = objectMapper.readTree(line);
                         if (json.path("done").asBoolean()) return null;
+                        String role = json.path("message").path("role").asText("");
+                        if ("thinking".equals(role)) return null;
                         return json.path("message").path("content").asText("");
                     } catch (Exception e) {
                         return null;
