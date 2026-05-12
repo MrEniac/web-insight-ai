@@ -1,0 +1,27 @@
+{
+  "name": "web-insight-ai",
+  "description": "AI-powered browsing enhancement layer for developers",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "lucide-react": "^0.469.0"
+  },
+  "devDependencies": {
+    "@wxt-dev/module-react": "^1.1.3",
+    "tailwindcss": "^4.1.5",
+    "@tailwindcss/vite": "^4.1.5",
+    "typescript": "^5.8.3",
+    "wxt": "^0.19.11",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2"
+  }
+}
