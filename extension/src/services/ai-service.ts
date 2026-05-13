@@ -164,10 +164,11 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
 
   private async callOllamaChat(messages: ChatMessage[]): Promise<string> {
     const model = this.config.selectedModel || 'qwen3.5:2b';
+    const noThinkMessages = this.withNoThink(messages);
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: false }),
+      body: JSON.stringify({ model, messages: noThinkMessages, stream: false }),
     });
 
     if (!response.ok) {
@@ -183,10 +184,11 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
     onChunk: (text: string) => void,
   ): Promise<void> {
     const model = this.config.selectedModel || 'qwen3.5:2b';
+    const noThinkMessages = this.withNoThink(messages);
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: true }),
+      body: JSON.stringify({ model, messages: noThinkMessages, stream: true }),
     });
 
     if (!response.ok) {
@@ -318,5 +320,14 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
     } catch {
       return { available: false, models: [] };
     }
+  }
+
+  private withNoThink(messages: ChatMessage[]): ChatMessage[] {
+    if (messages.length === 0) return messages;
+    const first = messages[0];
+    if (first.role === 'user' && !first.content.startsWith('/no_think')) {
+      return [{ role: 'user', content: `/no_think\n${first.content}` }, ...messages.slice(1)];
+    }
+    return messages;
   }
 }

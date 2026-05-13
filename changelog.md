@@ -143,11 +143,11 @@
 - Popup 白屏问题：移除 `openPanelOnActionClick: true`，点击图标恢复弹出 Popup 设置页
 - Popup 渲染问题：`definePopup` 改为标准 `createRoot` DOM 渲染
 - 侧边栏设置按钮无效：`openOptionsPage()` 改为 `chrome.tabs.create()` 打开设置页
-- Qwen3.5 思考模式导致 AI 输出卡死：`/no_think` 和 `think:false` 对 generate API 无效
-  - 前端所有 Ollama 调用从 `generate` API 改为 `chat` API
-  - 后端 `OllamaProvider.generate()` 和 `generateStream()` 改为通过 `chat` API 实现
-  - 禁用思考模式指令从 `/no_think` 改为 `/set nothink`
-  - 流式输出增加 `json.done` 检测和 `role === 'thinking'` 过滤
+- Qwen3.5 思考模式导致 AI 输出卡死：全面从 generate API 迁移到 chat API
+  - `/no_think` 和 `/set nothink` 作为独立消息均会导致超时或更长思考，已全部移除
+  - 改为纯靠 `role === 'thinking'` 过滤思考内容
+  - 后端 OllamaProvider 的 generate/generateStream 也改用 chat API 实现
+  - GitHubCard/SummaryPanel 添加 "AI is thinking..." 旋转加载提示，首个内容块到达后自动移除
 - Prompt 中移除 `/no_think` 前缀（改由消息级 `/set nothink` 控制）
 
 ### 构建

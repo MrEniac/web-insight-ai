@@ -44,7 +44,7 @@ public class OllamaProvider implements AiModelProvider {
         log.info("Ollama generate (via chat) with model: {}", useModel);
 
         List<Map<String, String>> messages = List.of(
-                Map.of("role", "user", "content", prompt)
+                Map.of("role", "user", "content", "/no_think\n" + prompt)
         );
 
         HttpHeaders headers = new HttpHeaders();
@@ -79,7 +79,7 @@ public class OllamaProvider implements AiModelProvider {
         log.info("Ollama generateStream (via chat) with model: {}", useModel);
 
         List<Map<String, String>> messages = List.of(
-                Map.of("role", "user", "content", prompt)
+                Map.of("role", "user", "content", "/no_think\n" + prompt)
         );
 
         Map<String, Object> body = new HashMap<>();
@@ -119,6 +119,10 @@ public class OllamaProvider implements AiModelProvider {
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
                 .collect(Collectors.toList());
+        if (!messageList.isEmpty() && "user".equals(messageList.get(0).get("role"))) {
+            Map<String, String> first = messageList.get(0);
+            messageList.set(0, Map.of("role", "user", "content", "/no_think\n" + first.get("content")));
+        }
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
@@ -150,6 +154,10 @@ public class OllamaProvider implements AiModelProvider {
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
                 .collect(Collectors.toList());
+        if (!messageList.isEmpty() && "user".equals(messageList.get(0).get("role"))) {
+            Map<String, String> first = messageList.get(0);
+            messageList.set(0, Map.of("role", "user", "content", "/no_think\n" + first.get("content")));
+        }
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
