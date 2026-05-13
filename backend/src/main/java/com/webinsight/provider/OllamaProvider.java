@@ -13,6 +13,7 @@ import reactor.core.publisher.Flux;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -49,7 +50,6 @@ public class OllamaProvider implements AiModelProvider {
         body.put("model", useModel);
         body.put("prompt", prompt + "\n/no_think");
         body.put("stream", false);
-        body.put("think", false);
 
         HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
 
@@ -78,7 +78,6 @@ public class OllamaProvider implements AiModelProvider {
         body.put("model", useModel);
         body.put("prompt", prompt + "\n/no_think");
         body.put("stream", true);
-        body.put("think", false);
 
         return webClient.post()
                 .uri(ollamaUrl + "/api/generate")
@@ -110,13 +109,13 @@ public class OllamaProvider implements AiModelProvider {
 
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
-                .toList();
+                .collect(java.util.stream.Collectors.toList());
+        messageList.add(Map.of("role", "user", "content", "/no_think"));
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
         body.put("messages", messageList);
         body.put("stream", false);
-        body.put("think", false);
 
         HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
 
@@ -142,13 +141,13 @@ public class OllamaProvider implements AiModelProvider {
 
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
-                .toList();
+                .collect(java.util.stream.Collectors.toList());
+        messageList.add(Map.of("role", "user", "content", "/no_think"));
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
         body.put("messages", messageList);
         body.put("stream", true);
-        body.put("think", false);
 
         return webClient.post()
                 .uri(ollamaUrl + "/api/chat")

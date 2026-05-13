@@ -26,6 +26,9 @@ spring:
       timeout: 3000ms
 
 ai:
+  encryption:
+    key: WebInsightAI2024SecretKey32B!
+
   ollama:
     url: http://localhost:11434
     default-model: qwen3.5:2b

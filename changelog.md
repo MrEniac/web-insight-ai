@@ -88,5 +88,44 @@
 - 插件生产构建成功（wxt build，339KB 总大小）
 - 所有入口点正确构建：popup, sidepanel, github, search, summary, background
 
-### 注意
-- 使用插件调用ollama会被拒绝，需要设置CORS跨域限制
+## [2026-05-13] Ollama 集成修复
+
+### 修复
+- 设置用户级环境变量 `OLLAMA_ORIGINS=*`，修复浏览器插件 CORS 403 错误
+- 设置用户级环境变量 `OLLAMA_MODELS=D:\ollma\model`，修复模型找不到问题
+- 移除所有 Ollama 请求中的 `think: false` 参数（当前 Ollama 版本不支持，导致 500 错误）
+- 使用 `/no_think` 提示词后缀替代 `think: false` 参数，禁用 Qwen3.5 思考模式
+- 修复 ai-service.ts 中 chat/stream 方法变量声明位置错误（const 在对象字面量内部）
+
+### 验证
+- Ollama generate API 无 `think` 参数测试通过（qwen3.5:0.8b 响应正常）
+- 插件重新构建成功（339KB）
+
+## [2026-05-13] Phase 2 - API 网关 + 云模型支持
+
+### 新增
+
+#### 后端 (backend/)
+- ProviderConfigEntity JPA 实体 + ProviderConfigRepository：云端模型配置持久化（MySQL）
+- ApiKeyEncryptionService：AES-256-GCM 加密存储 API Key
+- ProviderConfigService：云端配置管理（CRUD + 密钥加解密）
+- ProviderConfigController：`/api/settings/providers` REST API（列表/查询/创建/更新/删除）
+- RateLimitFilter：IP + 路径级别限流（60 req/min on `/api/ai/*`）
+- AiRequest 新增 `apiKey`、`apiUrl` 字段，支持请求级密钥传递
+- AiModelService 重构：支持从请求或 DB 动态获取 API Key/URL/Model
+
+#### 插件端 (extension/)
+- Settings 页面增强：云端模式增加 Model Name 字段、自定义模式增加 Model Name 字段
+- Settings 保存时同步将 API Key 写入后端加密存储（通过 `/api/settings/providers`）
+- ai-service.ts 新增 `getAuthProvider()` 方法，云端/自定义模式自动携带 provider/apiKey/apiUrl
+- AnalyzeRequest 接口新增 `provider`、`model`、`apiKey`、`apiUrl`、`messages`、`prompt` 字段
+
+### 修复
+- 后端 OllamaProvider 移除所有 `think: false` 参数（与前端保持一致，改用 `/no_think` 提示词）
+- 后端 OllamaProvider chat/chatStream 方法追加 `/no_think` 用户消息
+
+### 验证
+- 后端 Maven clean compile 通过（24 个源文件）
+- 插件 wxt build 通过（344KB）
+- Lombok 注解处理正常
+- MySQL provider_configs 表将随 JPA ddl-auto=update 自动创建

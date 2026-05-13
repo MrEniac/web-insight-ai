@@ -21,6 +21,10 @@ public class AiRequest {
 
     private String provider;
 
+    private String apiKey;
+
+    private String apiUrl;
+
     @Data
     public static class ChatMessage {
         private String role;

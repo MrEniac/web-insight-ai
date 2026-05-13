@@ -13,6 +13,12 @@ export interface AnalyzeRequest {
   type: 'github' | 'summary' | 'search' | 'chat';
   data: Record<string, unknown>;
   stream?: boolean;
+  provider?: string;
+  model?: string;
+  apiKey?: string;
+  apiUrl?: string;
+  messages?: ChatMessage[];
+  prompt?: string;
 }
 
 export interface AnalyzeResponse {
@@ -153,7 +159,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: false, think: false }),
+      body: JSON.stringify({ model, prompt: prompt + '\n/no_think', stream: false }),
     });
 
     if (!response.ok) {
@@ -169,7 +175,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: true, think: false }),
+      body: JSON.stringify({ model, prompt: prompt + '\n/no_think', stream: true }),
     });
 
     if (!response.ok) {
@@ -206,10 +212,11 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
 
   private async callOllamaChat(messages: ChatMessage[]): Promise<string> {
     const model = this.config.selectedModel || 'qwen3.5:2b';
+    const messagesWithNoThink = [...messages, { role: 'user' as const, content: '/no_think' }];
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: false, think: false }),
+      body: JSON.stringify({ model, messages: messagesWithNoThink, stream: false }),
     });
 
     if (!response.ok) {
@@ -225,10 +232,11 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     onChunk: (text: string) => void,
   ): Promise<void> {
     const model = this.config.selectedModel || 'qwen3.5:2b';
+    const messagesWithNoThink = [...messages, { role: 'user' as const, content: '/no_think' }];
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: true, think: false }),
+      body: JSON.stringify({ model, messages: messagesWithNoThink, stream: true }),
     });
 
     if (!response.ok) {
@@ -263,11 +271,33 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     }
   }
 
+  private getAuthProvider(): { provider: string; model: string; apiKey: string; apiUrl: string } {
+    if (this.config.mode === 'cloud') {
+      return {
+        provider: this.config.cloudProvider,
+        model: '',
+        apiKey: this.config.cloudApiKey,
+        apiUrl: '',
+      };
+    }
+    if (this.config.mode === 'custom') {
+      return {
+        provider: 'custom',
+        model: '',
+        apiKey: this.config.customApiKey,
+        apiUrl: this.config.customApiUrl,
+      };
+    }
+    return { provider: 'ollama', model: this.config.selectedModel, apiKey: '', apiUrl: '' };
+  }
+
   private async callBackend(request: AnalyzeRequest): Promise<string> {
+    const auth = this.getAuthProvider();
+    const enriched = { ...request, provider: auth.provider, model: auth.model, apiKey: auth.apiKey, apiUrl: auth.apiUrl };
     const response = await fetch(`${this.config.backendUrl}/api/ai/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
+      body: JSON.stringify(enriched),
     });
 
     if (!response.ok) {
@@ -282,10 +312,12 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     request: AnalyzeRequest,
     onChunk: (text: string) => void,
   ): Promise<void> {
+    const auth = this.getAuthProvider();
+    const enriched = { ...request, stream: true, provider: auth.provider, model: auth.model, apiKey: auth.apiKey, apiUrl: auth.apiUrl };
     const response = await fetch(`${this.config.backendUrl}/api/ai/analyze/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...request, stream: true }),
+      body: JSON.stringify(enriched),
     });
 
     if (!response.ok) {
