@@ -81,7 +81,7 @@ export default function App() {
   }
 
   function openSettings() {
-    chrome.runtime.openOptionsPage?.() || chrome.tabs.create({ url: chrome.runtime.getURL('popup.html') });
+    chrome.tabs.create({ url: chrome.runtime.getURL('popup.html') });
   }
 
   if (showSettings) {
