@@ -44,8 +44,7 @@ public class OllamaProvider implements AiModelProvider {
         log.info("Ollama generate (via chat) with model: {}", useModel);
 
         List<Map<String, String>> messages = List.of(
-                Map.of("role", "user", "content", prompt),
-                Map.of("role", "user", "content", "/set nothink")
+                Map.of("role", "user", "content", prompt)
         );
 
         HttpHeaders headers = new HttpHeaders();
@@ -80,8 +79,7 @@ public class OllamaProvider implements AiModelProvider {
         log.info("Ollama generateStream (via chat) with model: {}", useModel);
 
         List<Map<String, String>> messages = List.of(
-                Map.of("role", "user", "content", prompt),
-                Map.of("role", "user", "content", "/set nothink")
+                Map.of("role", "user", "content", prompt)
         );
 
         Map<String, Object> body = new HashMap<>();
@@ -121,7 +119,6 @@ public class OllamaProvider implements AiModelProvider {
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
                 .collect(Collectors.toList());
-        messageList.add(Map.of("role", "user", "content", "/no_think"));
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
@@ -153,7 +150,6 @@ public class OllamaProvider implements AiModelProvider {
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
                 .collect(Collectors.toList());
-        messageList.add(Map.of("role", "user", "content", "/no_think"));
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
