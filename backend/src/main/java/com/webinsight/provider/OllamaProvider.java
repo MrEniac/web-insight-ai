@@ -22,7 +22,7 @@ public class OllamaProvider implements AiModelProvider {
     @Value("${ai.ollama.url:http://localhost:11434}")
     private String ollamaUrl;
 
-    @Value("${ai.ollama.default-model:qwen2.5:7b}")
+    @Value("${ai.ollama.default-model:qwen3.5:2b}")
     private String defaultModel;
 
     @Value("${ai.ollama.timeout:120}")
@@ -41,28 +41,33 @@ public class OllamaProvider implements AiModelProvider {
     @Override
     public String generate(String prompt, String model) {
         String useModel = (model != null && !model.isEmpty()) ? model : defaultModel;
-        log.info("Ollama generate with model: {}", useModel);
+        log.info("Ollama generate (via chat) with model: {}", useModel);
+
+        List<Map<String, String>> messages = List.of(
+                Map.of("role", "user", "content", prompt),
+                Map.of("role", "user", "content", "/set nothink")
+        );
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
-        body.put("prompt", prompt + "\n/no_think");
+        body.put("messages", messages);
         body.put("stream", false);
 
         HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
 
         try {
             ResponseEntity<String> response = restTemplate.exchange(
-                    ollamaUrl + "/api/generate",
+                    ollamaUrl + "/api/chat",
                     HttpMethod.POST,
                     request,
                     String.class
             );
 
             JsonNode json = objectMapper.readTree(response.getBody());
-            return json.path("response").asText();
+            return json.path("message").path("content").asText();
         } catch (Exception e) {
             log.error("Ollama generate failed: {}", e.getMessage());
             throw new RuntimeException("Ollama generate failed: " + e.getMessage());
@@ -72,15 +77,20 @@ public class OllamaProvider implements AiModelProvider {
     @Override
     public Flux<String> generateStream(String prompt, String model) {
         String useModel = (model != null && !model.isEmpty()) ? model : defaultModel;
-        log.info("Ollama generateStream with model: {}", useModel);
+        log.info("Ollama generateStream (via chat) with model: {}", useModel);
+
+        List<Map<String, String>> messages = List.of(
+                Map.of("role", "user", "content", prompt),
+                Map.of("role", "user", "content", "/set nothink")
+        );
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
-        body.put("prompt", prompt + "\n/no_think");
+        body.put("messages", messages);
         body.put("stream", true);
 
         return webClient.post()
-                .uri(ollamaUrl + "/api/generate")
+                .uri(ollamaUrl + "/api/chat")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
@@ -90,8 +100,9 @@ public class OllamaProvider implements AiModelProvider {
                     try {
                         JsonNode json = objectMapper.readTree(line);
                         if (json.path("done").asBoolean()) return null;
-                        String content = json.path("response").asText("");
-                        return content.isEmpty() ? null : content;
+                        String role = json.path("message").path("role").asText("");
+                        if ("thinking".equals(role)) return null;
+                        return json.path("message").path("content").asText("");
                     } catch (Exception e) {
                         return null;
                     }
@@ -109,8 +120,8 @@ public class OllamaProvider implements AiModelProvider {
 
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
-                .collect(java.util.stream.Collectors.toList());
-        messageList.add(Map.of("role", "user", "content", "/no_think"));
+                .collect(Collectors.toList());
+        messageList.add(Map.of("role", "user", "content", "/set nothink"));
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
@@ -141,8 +152,8 @@ public class OllamaProvider implements AiModelProvider {
 
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
-                .collect(java.util.stream.Collectors.toList());
-        messageList.add(Map.of("role", "user", "content", "/no_think"));
+                .collect(Collectors.toList());
+        messageList.add(Map.of("role", "user", "content", "/set nothink"));
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);

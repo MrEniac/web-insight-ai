@@ -70,7 +70,9 @@ export class AIService {
     const prompt = this.buildGitHubPrompt(data);
 
     if (this.config.mode === 'local') {
-      return this.callOllama(prompt);
+      return this.callOllamaChat([
+        { role: 'user', content: prompt },
+      ]);
     }
     return this.callBackend({ type: 'github', data: { prompt, ...data } });
   }
@@ -83,7 +85,9 @@ export class AIService {
     const prompt = this.buildGitHubPrompt(data);
 
     if (this.config.mode === 'local') {
-      await this.callOllamaStream(prompt, onChunk);
+      await this.callOllamaChatStream([
+        { role: 'user', content: prompt },
+      ], onChunk);
     } else {
       await this.callBackendStream({ type: 'github', data: { prompt, ...data } }, onChunk);
     }
@@ -91,10 +95,12 @@ export class AIService {
 
   async summarize(content: { title: string; text: string }): Promise<string> {
     await this.loadConfig();
-    const prompt = `/no_think 请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
+    const prompt = `请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
 
     if (this.config.mode === 'local') {
-      return this.callOllama(prompt);
+      return this.callOllamaChat([
+        { role: 'user', content: prompt },
+      ]);
     }
     return this.callBackend({ type: 'summary', data: { prompt, ...content } });
   }
@@ -104,10 +110,12 @@ export class AIService {
     onChunk: (text: string) => void,
   ): Promise<void> {
     await this.loadConfig();
-    const prompt = `/no_think 请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
+    const prompt = `请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
 
     if (this.config.mode === 'local') {
-      await this.callOllamaStream(prompt, onChunk);
+      await this.callOllamaChatStream([
+        { role: 'user', content: prompt },
+      ], onChunk);
     } else {
       await this.callBackendStream({ type: 'summary', data: { prompt, ...content } }, onChunk);
     }
@@ -136,7 +144,7 @@ export class AIService {
   }
 
 private buildGitHubPrompt(data: Record<string, unknown>): string {
-    return `/no_think 你是一个GitHub项目分析助手。请根据以下信息分析：
+    return `你是一个GitHub项目分析助手。请根据以下信息分析：
  1. 项目类型
  2. 技术栈
  3. 学习难度（Beginner/Intermediate/Advanced）
@@ -152,68 +160,11 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
 
  README内容：
  ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
- }
-
-  private async callOllama(prompt: string): Promise<string> {
-    const model = this.config.selectedModel || 'qwen3.5:2b';
-    const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: false }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama request failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.response;
-  }
-
-  private async callOllamaStream(prompt: string, onChunk: (text: string) => void): Promise<void> {
-    const model = this.config.selectedModel || 'qwen3.5:2b';
-    const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: true }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama stream request failed: ${response.status}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const json = JSON.parse(line);
-              if (json.response) {
-                onChunk(json.response);
-              }
-              if (json.done) break;
-            } catch {
-              // skip malformed lines
-            }
-          }
-    }
   }
 
   private async callOllamaChat(messages: ChatMessage[]): Promise<string> {
     const model = this.config.selectedModel || 'qwen3.5:2b';
-    const messagesWithNoThink = [...messages, { role: 'user' as const, content: '/no_think' }];
+    const messagesWithNoThink = [...messages, { role: 'user' as const, content: '/set nothink' }];
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -233,7 +184,7 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
     onChunk: (text: string) => void,
   ): Promise<void> {
     const model = this.config.selectedModel || 'qwen3.5:2b';
-    const messagesWithNoThink = [...messages, { role: 'user' as const, content: '/no_think' }];
+    const messagesWithNoThink = [...messages, { role: 'user' as const, content: '/set nothink' }];
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -262,6 +213,7 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
         if (!line.trim()) continue;
         try {
           const json = JSON.parse(line);
+          if (json.done) continue;
           if (json.message?.content && json.message?.role !== 'thinking') {
             onChunk(json.message.content);
           }
