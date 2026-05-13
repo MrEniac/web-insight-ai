@@ -91,7 +91,7 @@ export class AIService {
 
   async summarize(content: { title: string; text: string }): Promise<string> {
     await this.loadConfig();
-    const prompt = `请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
+    const prompt = `/no_think 请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
 
     if (this.config.mode === 'local') {
       return this.callOllama(prompt);
@@ -104,7 +104,7 @@ export class AIService {
     onChunk: (text: string) => void,
   ): Promise<void> {
     await this.loadConfig();
-    const prompt = `请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
+    const prompt = `/no_think 请对以下文章内容进行总结，提取核心要点：\n\n标题：${content.title}\n\n内容：${content.text}`;
 
     if (this.config.mode === 'local') {
       await this.callOllamaStream(prompt, onChunk);
@@ -135,31 +135,31 @@ export class AIService {
     }
   }
 
-  private buildGitHubPrompt(data: Record<string, unknown>): string {
-    return `你是一个GitHub项目分析助手。请根据以下信息分析：
-1. 项目类型
-2. 技术栈
-3. 学习难度（Beginner/Intermediate/Advanced）
-4. 是否适合新手
-5. 项目主要用途
-6. 项目活跃度评估
+private buildGitHubPrompt(data: Record<string, unknown>): string {
+    return `/no_think 你是一个GitHub项目分析助手。请根据以下信息分析：
+ 1. 项目类型
+ 2. 技术栈
+ 3. 学习难度（Beginner/Intermediate/Advanced）
+ 4. 是否适合新手
+ 5. 项目主要用途
+ 6. 项目活跃度评估
 
-项目名称：${data.repoName || ''}
-Star数：${data.stars || 0}
-语言：${data.language || ''}
-Fork数：${data.forks || 0}
-Issue数：${data.issues || 0}
+ 项目名称：${data.repoName || ''}
+ Star数：${data.stars || 0}
+ 语言：${data.language || ''}
+ Fork数：${data.forks || 0}
+ Issue数：${data.issues || 0}
 
-README内容：
-${(data.readme as string)?.slice(0, 8000) || '无README'}`;
-  }
+ README内容：
+ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
+ }
 
   private async callOllama(prompt: string): Promise<string> {
     const model = this.config.selectedModel || 'qwen3.5:2b';
     const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt: prompt + '\n/no_think', stream: false }),
+      body: JSON.stringify({ model, prompt, stream: false }),
     });
 
     if (!response.ok) {
@@ -175,7 +175,7 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
     const response = await fetch(`${this.config.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt: prompt + '\n/no_think', stream: true }),
+      body: JSON.stringify({ model, prompt, stream: true }),
     });
 
     if (!response.ok) {
@@ -197,16 +197,17 @@ ${(data.readme as string)?.slice(0, 8000) || '无README'}`;
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const json = JSON.parse(line);
-          if (json.response) {
-            onChunk(json.response);
+            if (!line.trim()) continue;
+            try {
+              const json = JSON.parse(line);
+              if (json.response) {
+                onChunk(json.response);
+              }
+              if (json.done) break;
+            } catch {
+              // skip malformed lines
+            }
           }
-        } catch {
-          // skip malformed lines
-        }
-      }
     }
   }
 
