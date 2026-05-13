@@ -105,6 +105,13 @@ export function renderGitHubCardStream(): { container: HTMLElement; onChunk: (te
       <span style="font-size:16px;font-weight:600;color:#58a6ff;">Web Insight AI</span>
       <span style="font-size:12px;color:#8b949e;margin-left:auto;" class="web-insight-ai-status">Streaming...</span>
     </div>
+    <div class="web-insight-ai-thinking" style="display:flex;align-items:center;gap:8px;color:#8b949e;margin-bottom:8px;">
+      <div class="web-insight-ai-spinner" style="
+        width:14px;height:14px;border:2px solid #30363d;border-top:2px solid #58a6ff;
+        border-radius:50%;animation:webInsightAISpin 1s linear infinite;
+      "></div>
+      <span>AI is thinking...</span>
+    </div>
     <div class="web-insight-ai-result" style="white-space:pre-wrap;line-height:1.7;color:#c9d1d9;"></div>
     <span class="web-insight-ai-cursor" style="display:inline-block;width:8px;height:14px;background:#58a6ff;margin-left:2px;animation:webInsightAIBlink 1s step-end infinite;vertical-align:middle;"></span>
   `;
@@ -112,8 +119,14 @@ export function renderGitHubCardStream(): { container: HTMLElement; onChunk: (te
   insertCardIntoPage(container);
 
   let fullText = '';
+  let hasFirstChunk = false;
 
   const onChunk = (text: string) => {
+    if (!hasFirstChunk) {
+      hasFirstChunk = true;
+      const thinkingEl = container.querySelector('.web-insight-ai-thinking');
+      if (thinkingEl) thinkingEl.remove();
+    }
     fullText += text;
     const resultEl = container.querySelector('.web-insight-ai-result');
     if (resultEl) {

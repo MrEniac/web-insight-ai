@@ -83,6 +83,13 @@ export function showSummaryStreamPanel(title: string): { onChunk: (text: string)
       <button id="web-insight-ai-close" style="background:none;border:none;color:#8b949e;cursor:pointer;font-size:18px;padding:4px 8px;">✕</button>
     </div>
     <div style="font-size:15px;font-weight:500;color:#e6edf3;margin-bottom:8px;">${escapeHtml(title)}</div>
+    <div class="web-insight-ai-thinking" style="display:flex;align-items:center;gap:8px;color:#8b949e;margin-bottom:8px;">
+      <div class="web-insight-ai-summary-spinner" style="
+        width:14px;height:14px;border:2px solid #30363d;border-top:2px solid #58a6ff;
+        border-radius:50%;animation:webInsightAISpin 1s linear infinite;
+      "></div>
+      <span>AI is thinking...</span>
+    </div>
     <div class="web-insight-ai-summary-content" style="white-space:pre-wrap;line-height:1.7;color:#c9d1d9;"></div>
     <span class="web-insight-ai-cursor" style="display:inline-block;width:8px;height:14px;background:#58a6ff;animation:webInsightAIBlink 1s step-end infinite;vertical-align:middle;"></span>
   `;
@@ -90,7 +97,7 @@ export function showSummaryStreamPanel(title: string): { onChunk: (text: string)
   if (!document.getElementById('web-insight-ai-summary-styles')) {
     const style = document.createElement('style');
     style.id = 'web-insight-ai-summary-styles';
-    style.textContent = `@keyframes webInsightAIBlink { 50% { opacity: 0; } }`;
+    style.textContent = `@keyframes webInsightAIBlink { 50% { opacity: 0; } } @keyframes webInsightAISpin { to { transform: rotate(360deg); } }`;
     document.head.appendChild(style);
   }
 
@@ -102,8 +109,14 @@ export function showSummaryStreamPanel(title: string): { onChunk: (text: string)
   });
 
   let fullText = '';
+  let hasFirstChunk = false;
 
   const onChunk = (text: string) => {
+    if (!hasFirstChunk) {
+      hasFirstChunk = true;
+      const thinkingEl = panel.querySelector('.web-insight-ai-thinking');
+      if (thinkingEl) thinkingEl.remove();
+    }
     fullText += text;
     const contentEl = panel.querySelector('.web-insight-ai-summary-content');
     if (contentEl) {

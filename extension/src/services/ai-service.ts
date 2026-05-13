@@ -164,7 +164,7 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
 
   private async callOllamaChat(messages: ChatMessage[]): Promise<string> {
     const model = this.config.selectedModel || 'qwen3.5:2b';
-    const messagesWithNoThink = [...messages, { role: 'user' as const, content: '/set nothink' }];
+    const messagesWithNoThink = [...messages];
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -184,7 +184,7 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
     onChunk: (text: string) => void,
   ): Promise<void> {
     const model = this.config.selectedModel || 'qwen3.5:2b';
-    const messagesWithNoThink = [...messages, { role: 'user' as const, content: '/set nothink' }];
+    const messagesWithNoThink = [...messages];
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

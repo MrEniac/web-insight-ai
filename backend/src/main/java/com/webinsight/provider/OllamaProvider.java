@@ -121,7 +121,7 @@ public class OllamaProvider implements AiModelProvider {
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
                 .collect(Collectors.toList());
-        messageList.add(Map.of("role", "user", "content", "/set nothink"));
+        messageList.add(Map.of("role", "user", "content", "/no_think"));
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
@@ -153,7 +153,7 @@ public class OllamaProvider implements AiModelProvider {
         List<Map<String, String>> messageList = messages.stream()
                 .map(m -> Map.of("role", m.role(), "content", m.content()))
                 .collect(Collectors.toList());
-        messageList.add(Map.of("role", "user", "content", "/set nothink"));
+        messageList.add(Map.of("role", "user", "content", "/no_think"));
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", useModel);
