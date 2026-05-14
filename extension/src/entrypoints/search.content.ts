@@ -84,9 +84,8 @@ export default defineContentScript({
         console.log('[Web Insight AI] AI response length:', fullResponse.length);
         console.log('[Web Insight AI] AI response preview:', fullResponse.substring(0, 300));
 
-        const aiScoresMap = parseRelevanceScores(fullResponse, batch.length);
+        const tagsMap = parseBatchResponse(fullResponse, batch.length);
         console.log('[Web Insight AI] Parsed tags map:', tagsMap.map((t) => t?.join(',') || 'empty'));
-        console.log('[Web Insight AI] AI scores:', aiScoresMap);
 
         batch.forEach((result, i) => {
           const loading = result.element.querySelector('.web-insight-ai-tag-loading');
@@ -95,8 +94,9 @@ export default defineContentScript({
             try {
               const keywordScore = computeKeywordOverlap(query, result.title, result.description);
               const urlSignal = computeUrlSignal(result.url);
-              const finalScore = calculateFinalScore(aiScoresMap[i], keywordScore, urlSignal, clicks[result.url] || 0);
-              console.log(`[Web Insight AI] Result ${i}: kw=${keywordScore} url=${urlSignal} AI=${aiScoresMap[i]} final=${finalScore}`);
+              const clickCount = clicks[result.url] || 0;
+              const finalScore = calculateFinalScore(keywordScore, urlSignal, clickCount);
+              console.log(`[Web Insight AI] Result ${i}: kw=${keywordScore} url=${urlSignal} clicks=${clickCount} final=${finalScore}`);
               adapter.injectTag(result.element, tagsMap[i], finalScore);
               processedCount++;
             } catch (e) {
@@ -150,11 +150,10 @@ function buildSearchBatchPrompt(results: Array<{ title: string; url: string; des
 
 ${items}
 
-请严格按以下格式输出（每条结果一行，标签后跟|和分数）：
-1. 标签1, 标签2 | 85
-2. 标签1, 标签2 | 60
-...
-${results.length}. 标签1, 标签2 | 分数`;
+请严格按以下格式输出（每条结果一行）：
+1. 标签1, 标签2, 标签3
+2. 标签1, 标签2, 标签3
+${results.length}. 标签1, 标签2, 标签3`;
 }
 
 function parseBatchResponse(response: string, count: number): string[][] {
@@ -203,48 +202,15 @@ function parseBatchResponse(response: string, count: number): string[][] {
   return tagsMap;
 }
 
-function parseRelevanceScores(response: string, count: number): (number | null)[] {
-  const scores: (number | null)[] = new Array(count).fill(null);
-  const lines = response.split('\n');
-  let seqIndex = 0;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    const numMatch = trimmed.match(/^(\d+)[.、)]/);
-    let idx: number | null = null;
-    if (numMatch) {
-      idx = parseInt(numMatch[1], 10) - 1;
-    } else if (seqIndex < count) {
-      idx = seqIndex++;
-    }
-    if (idx === null || idx < 0 || idx >= count) continue;
-
-    const scoreMatch = trimmed.match(/[|｜]\s*(\d+)\s*$/);
-    if (scoreMatch) {
-      const val = parseInt(scoreMatch[1], 10);
-      if (val >= 0 && val <= 100) {
-        scores[idx] = val;
-      }
-    }
-  }
-
-  return scores;
-}
-
 function calculateFinalScore(
-  aiScore: number | null,
   keywordOverlap: number,
   urlSignal: number,
   clickCount: number,
 ): number {
-  const ai = aiScore ?? 50;
   const clickBonus = Math.min(clickCount * 5, 10);
   return Math.round(
-    keywordOverlap * 0.35 +
-    ai * 0.40 +
-    urlSignal * 0.15 +
+    keywordOverlap * 0.45 +
+    urlSignal * 0.45 +
     clickBonus * 0.10,
   );
 }
