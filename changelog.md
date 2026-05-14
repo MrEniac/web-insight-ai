@@ -155,3 +155,28 @@
 ### 构建
 - 前端 wxt build 通过（345KB）
 - 后端 Maven clean compile 通过
+
+## [2026-05-14] Qwen3.5 思考模式最终解决方案
+
+### 修复
+- **确认 `think: false` API 参数是关闭思考模式的正确方法**（Ollama 0.23.3 支持）
+  - API 调用时在请求体中添加 `"think": false` 即可彻底禁用思考
+  - 测试结果：qwen3.5:2b 7 秒输出，`thinking` 字段为 null
+- 前端 `callOllamaChat/callOllamaChatStream` 的 fetch body 中添加 `think: false`
+- 后端 `OllamaProvider` 全部 4 个方法的请求体添加 `body.put("think", false)`
+- 移除 `/no_think\n` 前缀逻辑和 `withNoThink()` 方法（对 2b 反而导致超时）
+- 移除之前误提交的 Qwen Studio.html 及附属文件
+
+### 总结
+| 方法 | qwen3.5:2b 效果 |
+|------|----------------|
+| `generate` API | 54s 超时/空响应 |
+| `chat` API 无参数 | 8.5s，有 thinking |
+| `chat` API + `/no_think` 前缀 | 120s 超时 |
+| `chat` API + `think: false` | **7s，无 thinking** ✅ |
+
+### 验证
+- Ollama API 测试 `think: false` 参数有效（7s, `Has thinking: False`）
+- 前端 wxt build 通过（345KB）
+- 后端 Maven clean compile 通过
+- Spring Boot 启动成功（localhost:8080）

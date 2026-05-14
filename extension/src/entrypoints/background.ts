@@ -31,4 +31,10 @@ export default defineBackground(() => {
       chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
     }
   });
+
+  chrome.commands.onCommand.addListener((command, tab) => {
+    if (command === 'ai-summary' && tab?.id) {
+      chrome.tabs.sendMessage(tab.id, { type: 'AI_SUMMARY_REQUEST' });
+    }
+  });
 });

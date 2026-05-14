@@ -5,6 +5,7 @@ import com.webinsight.model.AiResponse;
 import com.webinsight.model.GitHubAnalysisRequest;
 import com.webinsight.service.AiModelService;
 import com.webinsight.service.CacheService;
+import com.webinsight.service.ContentExtractorService;
 import com.webinsight.service.PromptService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -21,11 +22,14 @@ public class AiGatewayController {
     private final AiModelService aiModelService;
     private final PromptService promptService;
     private final CacheService cacheService;
+    private final ContentExtractorService contentExtractorService;
 
-    public AiGatewayController(AiModelService aiModelService, PromptService promptService, CacheService cacheService) {
+    public AiGatewayController(AiModelService aiModelService, PromptService promptService,
+                                CacheService cacheService, ContentExtractorService contentExtractorService) {
         this.aiModelService = aiModelService;
         this.promptService = promptService;
         this.cacheService = cacheService;
+        this.contentExtractorService = contentExtractorService;
     }
 
     @PostMapping("/analyze")
@@ -106,6 +110,72 @@ public class AiGatewayController {
     public Flux<String> chatStream(@RequestBody AiRequest request) {
         log.info("Chat stream request, provider: {}", request.getProvider());
         return aiModelService.chatStream(request)
+                .delayElements(Duration.ofMillis(50));
+    }
+
+    @PostMapping("/summary")
+    public AiResponse summarizeUrl(@RequestBody java.util.Map<String, String> body) {
+        String url = body.get("url");
+        String title = body.get("title");
+        String text = body.get("text");
+
+        if (url != null && (title == null || text == null)) {
+            ContentExtractorService.ExtractedContent extracted = contentExtractorService.extractFromUrl(url);
+            if (extracted == null) {
+                return AiResponse.error("Failed to extract content from URL: " + url);
+            }
+            title = extracted.title();
+            text = extracted.text();
+        }
+
+        if (title == null || text == null) {
+            return AiResponse.error("Missing title or text content");
+        }
+
+        String prompt = promptService.buildSummaryPrompt(title, text);
+
+        String cacheKey = cacheService.generateCacheKey("summary", url != null ? url : title);
+        String cached = cacheService.get(cacheKey);
+        if (cached != null) {
+            return AiResponse.ok(cached);
+        }
+
+        AiRequest aiRequest = new AiRequest();
+        aiRequest.setType("summary");
+        aiRequest.setPrompt(prompt);
+        AiResponse response = aiModelService.analyze(aiRequest);
+
+        if (response.getSuccess() && response.getResult() != null) {
+            cacheService.put(cacheKey, response.getResult());
+        }
+        return response;
+    }
+
+    @PostMapping(value = "/summary/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> summarizeUrlStream(@RequestBody java.util.Map<String, String> body) {
+        String url = body.get("url");
+        String title = body.get("title");
+        String text = body.get("text");
+
+        if (url != null && (title == null || text == null)) {
+            ContentExtractorService.ExtractedContent extracted = contentExtractorService.extractFromUrl(url);
+            if (extracted == null) {
+                return Flux.just("data: [ERROR] Failed to extract content from URL\n\n");
+            }
+            title = extracted.title();
+            text = extracted.text();
+        }
+
+        if (title == null || text == null) {
+            return Flux.just("data: [ERROR] Missing title or text content\n\n");
+        }
+
+        String prompt = promptService.buildSummaryPrompt(title, text);
+        AiRequest aiRequest = new AiRequest();
+        aiRequest.setType("summary");
+        aiRequest.setPrompt(prompt);
+
+        return aiModelService.analyzeStream(aiRequest)
                 .delayElements(Duration.ofMillis(50));
     }
 }

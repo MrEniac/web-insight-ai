@@ -21,6 +21,12 @@ export default defineConfig({
       'http://localhost:11434/*',
       'http://localhost:8080/*',
     ],
+    commands: {
+      'ai-summary': {
+        suggested_key: { default: 'Ctrl+Shift+S', mac: 'MacCtrl+Shift+S' },
+        description: 'AI summary of current page',
+      },
+    },
   },
   runner: {
     disabled: true,
