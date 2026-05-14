@@ -13,11 +13,40 @@ interface SearchAdapter {
 class GoogleAdapter implements SearchAdapter {
   extractResults(): SearchResult[] {
     const results: SearchResult[] = [];
-    const items = document.querySelectorAll('#search .g');
-    items.forEach((item) => {
+    const selectors = [
+      '#search .g',
+      '#rso .g',
+      '#rso > div',
+      '#search div[data-hveid]',
+    ];
+
+    let items: NodeListOf<Element> | null = null;
+    for (const sel of selectors) {
+      items = document.querySelectorAll(sel);
+      if (items.length > 0) break;
+    }
+
+    if (!items || items.length === 0) {
+      items = document.querySelectorAll('h3');
+      items.forEach((h3) => {
+        const link = h3.closest('a') || h3.querySelector('a');
+        if (!link) return;
+        const parent = h3.closest('div[data-hveid]') || h3.closest('.g') || h3.parentElement?.parentElement;
+        if (!parent) return;
+        results.push({
+          title: h3.textContent?.trim() || '',
+          url: (link as HTMLAnchorElement).href || '',
+          description: '',
+          element: parent as HTMLElement,
+        });
+      });
+      if (results.length > 0) return results;
+    }
+
+    items?.forEach((item) => {
       const titleEl = item.querySelector('h3');
-      const linkEl = item.querySelector('a[data-ved]');
-      const descEl = item.querySelector('[data-sncf], .VwiC3b');
+      const linkEl = titleEl?.closest('a') || item.querySelector('a[href^="http"]');
+      const descEl = item.querySelector('[data-sncf], .VwiC3b, span.aCOpRe, div[data-sncf]');
 
       if (titleEl && linkEl) {
         results.push({

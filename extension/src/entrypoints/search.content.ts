@@ -1,28 +1,51 @@
 export default defineContentScript({
-  matches: ['https://www.google.com/*', 'https://www.google.co.jp/*', 'https://www.google.co.uk/*', 'https://www.bing.com/*', 'https://www.baidu.com/*'],
+  matches: ['https://*.google.com/*', 'https://*.google.co.jp/*', 'https://*.google.co.uk/*', 'https://*.bing.com/*', 'https://*.baidu.com/*'],
   main() {
-    console.log('[Web Insight AI] Content script loaded for search engines');
+    console.log('[Web Insight AI] Content script loaded for search engines:', window.location.href);
 
     let running = false;
+    let processedCount = 0;
 
     const enhanceSearchResults = async () => {
-      if (running) return;
+      if (running) {
+        console.log('[Web Insight AI] Search enhancement already running, skipping');
+        return;
+      }
       running = true;
 
       try {
         const { SearchEngineAdapter } = await import('@/services/search-adapter');
         const adapter = SearchEngineAdapter.detect();
-        if (!adapter) { running = false; return; }
+        console.log('[Web Insight AI] Search adapter detected:', adapter ? adapter.constructor.name : null);
+
+        if (!adapter) {
+          console.warn('[Web Insight AI] No search adapter for:', window.location.hostname);
+          running = false;
+          return;
+        }
 
         const results = adapter.extractResults();
-        if (results.length === 0) { running = false; return; }
+        console.log(`[Web Insight AI] Extracted ${results.length} search results`);
+
+        if (results.length === 0) {
+          running = false;
+          return;
+        }
 
         const unprocessed = results.filter((r) => !r.element.querySelector('.web-insight-ai-tags'));
-        if (unprocessed.length === 0) { running = false; return; }
+        console.log(`[Web Insight AI] Unprocessed results: ${unprocessed.length}, previously processed: ${processedCount}`);
 
-        console.log(`[Web Insight AI] Processing ${unprocessed.length} search results with AI`);
+        if (unprocessed.length === 0) {
+          running = false;
+          return;
+        }
 
-        for (const result of unprocessed) {
+        const { AIService } = await import('@/services/ai-service');
+        const ai = new AIService();
+        await ai.loadConfig();
+        console.log('[Web Insight AI] AI config loaded, mode:', (ai as any).config?.mode);
+
+        for (const result of unprocessed.slice(0, 10)) {
           const loadingEl = document.createElement('span');
           loadingEl.className = 'web-insight-ai-tag-loading';
           loadingEl.textContent = ' ↻ analyzing...';
@@ -30,28 +53,45 @@ export default defineContentScript({
           result.element.querySelector('h3')?.appendChild(loadingEl);
         }
 
-        const { AIService } = await import('@/services/ai-service');
-        const ai = new AIService();
-        await ai.loadConfig();
+        const batch = unprocessed.slice(0, 10);
+        const batchPrompt = buildSearchBatchPrompt(batch);
+        console.log('[Web Insight AI] Sending batch prompt, length:', batchPrompt.length);
 
-        const batchPrompt = buildSearchBatchPrompt(unprocessed);
         let fullResponse = '';
 
-        await ai.chatStream(
-          [{ role: 'user', content: batchPrompt }],
-          (chunk) => {
-            fullResponse += chunk;
-          },
-        );
+        try {
+          await ai.chatStream(
+            [{ role: 'user', content: batchPrompt }],
+            (chunk) => {
+              fullResponse += chunk;
+            },
+          );
+        } catch (err) {
+          console.error('[Web Insight AI] AI call failed:', err);
+          batch.forEach((result) => {
+            const loading = result.element.querySelector('.web-insight-ai-tag-loading');
+            if (loading) loading.remove();
+          });
+          running = false;
+          return;
+        }
 
-        const tagsMap = parseBatchResponse(fullResponse, unprocessed.length);
-        unprocessed.forEach((result, i) => {
+        console.log('[Web Insight AI] AI response length:', fullResponse.length);
+        console.log('[Web Insight AI] AI response preview:', fullResponse.substring(0, 300));
+
+        const tagsMap = parseBatchResponse(fullResponse, batch.length);
+        console.log('[Web Insight AI] Parsed tags map:', tagsMap.map((t) => t?.join(',') || 'empty'));
+
+        batch.forEach((result, i) => {
           const loading = result.element.querySelector('.web-insight-ai-tag-loading');
           if (loading) loading.remove();
           if (tagsMap[i] && tagsMap[i].length > 0) {
             adapter.injectTag(result.element, tagsMap[i]);
+            processedCount++;
           }
         });
+
+        console.log(`[Web Insight AI] Tags injected for ${processedCount} results`);
       } catch (err) {
         console.error('[Web Insight AI] Search enhancement error:', err);
       } finally {
@@ -62,7 +102,7 @@ export default defineContentScript({
     let debounceTimer: ReturnType<typeof setTimeout>;
     const debouncedEnhance = () => {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(enhanceSearchResults, 1000);
+      debounceTimer = setTimeout(enhanceSearchResults, 1500);
     };
 
     const observer = new MutationObserver(() => {
@@ -71,10 +111,12 @@ export default defineContentScript({
 
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
+        console.log('[Web Insight AI] DOMContentLoaded, starting search enhancement');
         debouncedEnhance();
         observer.observe(document.body, { childList: true, subtree: true });
       });
     } else {
+      console.log('[Web Insight AI] Document ready, starting search enhancement');
       debouncedEnhance();
       observer.observe(document.body, { childList: true, subtree: true });
     }
@@ -103,7 +145,7 @@ function parseBatchResponse(response: string, count: number): string[][] {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    const match = trimmed.match(/^(\d+)[.、]\s*(.+)$/);
+    const match = trimmed.match(/^(\d+)[.、)]\s*(.+)$/);
     if (match) {
       const index = parseInt(match[1], 10) - 1;
       if (index >= 0 && index < count) {
@@ -113,6 +155,10 @@ function parseBatchResponse(response: string, count: number): string[][] {
           .filter((t) => t.length > 0 && t.length < 20);
       }
     }
+  }
+
+  for (let i = 0; i < count; i++) {
+    if (!tagsMap[i]) tagsMap[i] = [];
   }
 
   return tagsMap;
