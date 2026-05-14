@@ -256,12 +256,29 @@ function computeUrlSignal(url: string): number {
   let score = 50;
   try {
     const host = new URL(url).hostname;
-    if (/\.gov\.cn|\.edu\.cn|\.edu$/.test(host)) score += 30;
-    else if (/github\.com|stackoverflow\.com|npmjs\.com|pypi\.org/.test(host)) score += 25;
-    else if (/wikipedia\.org|\.org$/.test(host)) score += 15;
-    else if (/zhihu\.com|csdn\.net|juejin\.cn|segmentfault\.com/.test(host)) score += 10;
-    else if (/\.io$|\.dev$|docs\./.test(host)) score += 10;
-    if (host.includes('official') || host.includes('doc')) score += 10;
+
+    const tier1 = /\.gov($|\.[a-z]{2}$)|\.edu($|\.[a-z]{2}$)|\.mil($|\.[a-z]{2}$)/;
+    const tier2 = /(github\.com|stackoverflow\.com|wikipedia\.org|npmjs\.com|pypi\.org|crates\.io|rubygems\.org|docker\.com|hub\.docker\.com)/;
+    const tier3 = /(mozilla\.org|webkit\.org|chromium\.org|apache\.org|gnu\.org|kernel\.org|opensource\.org|ietf\.org|w3\.org)/;
+    const tier4 = /(reuters\.com|bbc\.com|bbc\.co\.uk|cnn\.com|nytimes\.com|wsj\.com|bloomberg\.com|apnews\.com|theguardian\.com|economist\.com|ft\.com)/;
+    const tier5 = /(apple\.com|google\.com|microsoft\.com|amazon\.com|meta\.com|ibm\.com|oracle\.com|intel\.com|nvidia\.com|amd\.com|cisco\.com|adobe\.com|salesforce\.com|sap\.com|vmware\.com)/;
+    const tier6 = /(arxiv\.org|researchgate\.net|scholar\.google\.com|nature\.com|science\.org|ieee\.org|acm\.org|springer\.com|elsevier\.com|pubmed\.ncbi\.nlm\.nih\.gov)/;
+    const tier7 = /(medium\.com|dev\.to|hashnode\.dev|reddit\.com|news\.ycombinator\.com|hackernews\.com|\.substack\.com)/;
+    const tier8 = /(\.org$|\.io$|\.dev$|docs\.|documentation)/;
+
+    if (tier1.test(host)) score += 30;
+    else if (tier2.test(host)) score += 28;
+    else if (tier3.test(host)) score += 26;
+    else if (tier4.test(host)) score += 25;
+    else if (tier5.test(host)) score += 24;
+    else if (tier6.test(host)) score += 22;
+    else if (tier7.test(host)) score += 15;
+    else if (tier8.test(host)) score += 10;
+    else if (/zhihu\.com|csdn\.net|juejin\.cn|segmentfault\.com|oschina\.net|v2ex\.com/.test(host)) score += 8;
+    else if (/\.cn$/.test(host) && !/gov\.cn|edu\.cn/.test(host)) score += 5;
+
+    if (host.includes('official') || host.includes('doc') || host.includes('developer')) score += 5;
+    if (/^www\./.test(host)) score += 3;
   } catch {}
   return Math.min(100, score);
 }
