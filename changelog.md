@@ -144,12 +144,14 @@
 - Popup 渲染问题：`definePopup` 改为标准 `createRoot` DOM 渲染
 - 侧边栏设置按钮无效：`openOptionsPage()` 改为 `chrome.tabs.create()` 打开设置页
 - Qwen3.5 思考模式导致 AI 输出卡死：全面从 generate API 迁移到 chat API
-  - `/no_think` 和 `/set nothink` 作为独立消息均会导致超时或更长思考，已全部移除
-  - 改为纯靠 `role === 'thinking'` 过滤思考内容
   - 后端 OllamaProvider 的 generate/generateStream 也改用 chat API 实现
-  - GitHubCard/SummaryPanel 添加 "AI is thinking..." 旋转加载提示，首个内容块到达后自动移除
-- Prompt 中移除 `/no_think` 前缀（改由消息级 `/set nothink` 控制）
+  - 流式输出增加 `role === 'thinking'` 过滤，不输出思考内容
+- `/no_think` 放在用户消息开头（而非独立消息）可将思考时间从 32s 降至 4s
+  - 独立消息 `/no_think` 或 `/set nothink` 均导致超时或更长思考
+  - 前端 `withNoThink()` 方法自动为首个 user 消息添加 `/no_think\n` 前缀
+  - 后端 OllamaProvider 同样为首个 user 消息添加 `/no_think\n` 前缀
+- GitHubCard/SummaryPanel 添加 "AI is thinking..." 旋转加载提示，首个内容块到达后自动移除
 
 ### 构建
-- 前端 wxt build 通过（344KB）
+- 前端 wxt build 通过（345KB）
 - 后端 Maven clean compile 通过
