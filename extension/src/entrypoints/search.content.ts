@@ -142,17 +142,36 @@ ${results.length}. 标签1, 标签2, 标签3`;
 function parseBatchResponse(response: string, count: number): string[][] {
   const tagsMap: string[][] = [];
   const lines = response.split('\n');
+  let seqIndex = 0;
 
   for (const line of lines) {
     const trimmed = line.trim();
-    const match = trimmed.match(/^(\d+)[.、)]\s*(.+)$/);
-    if (match) {
-      const index = parseInt(match[1], 10) - 1;
-      if (index >= 0 && index < count) {
-        tagsMap[index] = match[2]
-          .split(/[,;，；、]/)
-          .map((t) => t.trim())
-          .filter((t) => t.length > 0 && t.length < 20);
+    if (!trimmed) continue;
+
+    let tags: string[] | null = null;
+    let targetIndex: number | null = null;
+
+    const numberedMatch = trimmed.match(/^(\d+)[.、)]\s*(.+)$/);
+    if (numberedMatch) {
+      targetIndex = parseInt(numberedMatch[1], 10) - 1;
+      tags = numberedMatch[2]
+        .split(/[,;，；、]/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0 && t.length < 20);
+    }
+
+    if (!numberedMatch && seqIndex < count) {
+      const commaSplit = trimmed.split(/[,;，；、]/);
+      if (commaSplit.length >= 2) {
+        targetIndex = seqIndex;
+        tags = commaSplit.map((t) => t.trim()).filter((t) => t.length > 0 && t.length < 20);
+      }
+    }
+
+    if (targetIndex !== null && targetIndex >= 0 && targetIndex < count && tags && tags.length > 0) {
+      if (!tagsMap[targetIndex]) {
+        tagsMap[targetIndex] = tags;
+        if (!numberedMatch) seqIndex++;
       }
     }
   }
