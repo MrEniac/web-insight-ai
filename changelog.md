@@ -211,3 +211,43 @@
 
 ### 修改
 - .gitignore 扩展：增加 IDE 专属文件、日志目录等忽略规则
+
+---
+
+## [2026-05-14] 今日重大修改汇总
+
+### Phase 3：网页 AI 摘要（`6e1f942`）
+- `Ctrl+Shift+S` 快捷键触发 AI 摘要（wxt.config.ts + background.ts）
+- 后端 `ContentExtractorService`：Jsoup 网页内容提取（去导航/广告/脚本）
+- 后端 `/api/ai/summary` + `/api/ai/summary/stream` 端点（支持 URL 自动抓取）
+- SummaryPanel 增加 "AI is thinking..." 旋转加载提示
+
+### Phase 4：搜索结果 AI 增强（`52770b2` → `e24e34e`）
+- 搜索标签批量 AI 分析：提取结果 → 批量 prompt → 流式调用 → 解析 → 注入
+- **匹配度多维度评分系统**（最终版）：
+  - AI 综合评分 70% + 关键词重叠 10% + URL 权威信号 15% + 点击行为 5%
+  - URL 权威信号 8 级分类 60+ 站点（政府/新闻/大企业/学术/开源组织）
+  - 点击行为自动记录到 `chrome.storage.local`，二次搜索自动加分
+  - 颜色编码：🟢80+ 🟠50-80 🔴<50
+- Google DOM 选择器多层兜底（`#search .g` → `#rso .g` → `h3`）
+- 匹配 `*.google.com/*` 全覆盖所有地区 TLD
+- 后端 `/api/ai/search/tags` + `/api/ai/search/tags/stream` 端点
+
+### 搜索解析器迭代修复
+- 支持编号行 + 无编号行混合格式解析
+- 自动剥离 `| 85` 后缀避免双匹配度
+- `tagsMap` 未定义 bug 修复
+- 标签注入防御：`element.isConnected` 检查 + `findAppendTarget` 回退
+- 防抖 3s + 加载图标去重
+
+### 社区规范完善（`bd2bcae` / `79aa50a`）
+- README.md：功能特性 / 架构图 / 安装指南 / API 端点文档
+- LICENSE：MIT 开源协议
+- CONTRIBUTING.md：贡献指南 / 提交规范 / 代码风格
+- .editorconfig：统一编辑器配置
+
+### Qwen3.5 思考模式最终方案（`c077d67`）
+- **`think: false` API 参数彻底禁用思考**（验证：qwen3.5:2b 7s 输出，无 thinking）
+- 前端 `callOllamaChat/Stream` + 后端 `OllamaProvider` 全部添加 `think: false`
+- `/no_think` 前缀对 2b 反致超时（120s），已移除
+- `/set nothink` 仅 CLI 交互模式有效，API 无效
