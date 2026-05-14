@@ -212,10 +212,10 @@ function calculateFinalScore(
 ): number {
   const clickBonus = Math.min(clickCount * 5, 10);
   return Math.round(
-    aiScore * 0.40 +
-    keywordOverlap * 0.25 +
-    urlSignal * 0.25 +
-    clickBonus * 0.10,
+    aiScore * 0.70 +
+    keywordOverlap * 0.10 +
+    urlSignal * 0.15 +
+    clickBonus * 0.05,
   );
 }
 
