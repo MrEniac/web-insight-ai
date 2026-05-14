@@ -49,6 +49,7 @@ export default defineContentScript({
         const clicks: Record<string, number> = stored.searchClicks || {};
 
         for (const result of unprocessed.slice(0, 10)) {
+          if (result.element.querySelector('.web-insight-ai-tag-loading')) continue;
           const loadingEl = document.createElement('span');
           loadingEl.className = 'web-insight-ai-tag-loading';
           loadingEl.textContent = ' ↻ analyzing...';
@@ -85,7 +86,7 @@ export default defineContentScript({
 
         const aiScoresMap = parseRelevanceScores(fullResponse, batch.length);
         console.log('[Web Insight AI] Parsed tags map:', tagsMap.map((t) => t?.join(',') || 'empty'));
-        console.log('[Web Insight AI] AI scores:', aiScoresMap.map((s) => `${s.relevance}/${s.quality}/${s.authority}/${s.timeliness}`));
+        console.log('[Web Insight AI] AI scores:', aiScoresMap);
 
         batch.forEach((result, i) => {
           const loading = result.element.querySelector('.web-insight-ai-tag-loading');
@@ -95,7 +96,7 @@ export default defineContentScript({
               const keywordScore = computeKeywordOverlap(query, result.title, result.description);
               const urlSignal = computeUrlSignal(result.url);
               const finalScore = calculateFinalScore(aiScoresMap[i], keywordScore, urlSignal, clicks[result.url] || 0);
-              console.log(`[Web Insight AI] Result ${i}: kw=${keywordScore} url=${urlSignal} clicks=${clicks[result.url]||0} AI=${JSON.stringify(aiScoresMap[i])} final=${finalScore}`);
+              console.log(`[Web Insight AI] Result ${i}: kw=${keywordScore} url=${urlSignal} AI=${aiScoresMap[i]} final=${finalScore}`);
               adapter.injectTag(result.element, tagsMap[i], finalScore);
               processedCount++;
             } catch (e) {
@@ -119,7 +120,7 @@ export default defineContentScript({
     let debounceTimer: ReturnType<typeof setTimeout>;
     const debouncedEnhance = () => {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(enhanceSearchResults, 1500);
+      debounceTimer = setTimeout(enhanceSearchResults, 3000);
     };
 
     const observer = new MutationObserver(() => {
@@ -145,21 +146,15 @@ function buildSearchBatchPrompt(results: Array<{ title: string; url: string; des
     .map((r, i) => `结果${i + 1}：\n标题：${r.title}\nURL：${r.url}\n描述：${r.description || '无'}`)
     .join('\n\n');
 
-  return `你是一个搜索结果分析助手。用户搜索了：「${query}」。请根据以下 ${results.length} 条搜索结果的信息，对每条结果：
-1. 生成 2-3 个简短的标签（中文），描述该链接的质量和类型
-2. 给出四个维度的评分（0-100）：
-   - 相关性：标题/描述与搜索意图的匹配程度
-   - 质量：内容的专业程度和可信度
-   - 权威：来源网站的权威性（官方、知名平台等）
-   - 时效：内容信息是否足够新
+  return `你是一个搜索结果分析助手。用户搜索了：「${query}」。请根据以下 ${results.length} 条搜索结果的信息，为每条结果生成 2-3 个简短的标签（中文），描述该链接的质量和类型。
 
 ${items}
 
-请严格按以下格式输出（每条结果一行）：
-1. 标签1, 标签2 | 相关: 85, 质量: 70, 权威: 90, 时效: 60
-2. 标签1, 标签2 | 相关: 60, 质量: 50, 权威: 40, 时效: 30
+请严格按以下格式输出（每条结果一行，标签后跟|和分数）：
+1. 标签1, 标签2 | 85
+2. 标签1, 标签2 | 60
 ...
-${results.length}. 标签1, 标签2 | 相关: 分数, 质量: 分数, 权威: 分数, 时效: 分数`;
+${results.length}. 标签1, 标签2 | 分数`;
 }
 
 function parseBatchResponse(response: string, count: number): string[][] {
@@ -177,7 +172,7 @@ function parseBatchResponse(response: string, count: number): string[][] {
     const numberedMatch = trimmed.match(/^(\d+)[.、)]\s*(.+)$/);
     if (numberedMatch) {
       targetIndex = parseInt(numberedMatch[1], 10) - 1;
-      const cleanContent = numberedMatch[2].replace(/\s*[|｜]\s*(相关|质量|权威|时效|匹配度)[：:]\s*\d+.*$/, '');
+      const cleanContent = numberedMatch[2].replace(/\s*[|｜]\s*\d+\s*$/, '');
       tags = cleanContent
         .split(/[,;，；、]/)
         .map((t) => t.trim())
@@ -185,7 +180,7 @@ function parseBatchResponse(response: string, count: number): string[][] {
     }
 
     if (!numberedMatch && seqIndex < count) {
-      const cleanContent = trimmed.replace(/\s*[|｜]\s*(相关|质量|权威|时效|匹配度)[：:]\s*\d+.*$/, '');
+      const cleanContent = trimmed.replace(/\s*[|｜]\s*\d+\s*$/, '');
       const commaSplit = cleanContent.split(/[,;，；、]/);
       if (commaSplit.length >= 2) {
         targetIndex = seqIndex;
@@ -208,27 +203,10 @@ function parseBatchResponse(response: string, count: number): string[][] {
   return tagsMap;
 }
 
-function parseRelevanceScores(response: string, count: number): {
-  relevance: number | null;
-  quality: number | null;
-  authority: number | null;
-  timeliness: number | null;
-}[] {
-  const scores = new Array(count).fill(null).map(() => ({
-    relevance: null as number | null,
-    quality: null as number | null,
-    authority: null as number | null,
-    timeliness: null as number | null,
-  }));
+function parseRelevanceScores(response: string, count: number): (number | null)[] {
+  const scores: (number | null)[] = new Array(count).fill(null);
   const lines = response.split('\n');
   let seqIndex = 0;
-
-  const dims = [
-    { key: 'relevance', regex: /相关[：:]\s*(\d+)/ },
-    { key: 'quality', regex: /质量[：:]\s*(\d+)/ },
-    { key: 'authority', regex: /权威[：:]\s*(\d+)/ },
-    { key: 'timeliness', regex: /时效[：:]\s*(\d+)/ },
-  ] as const;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -243,13 +221,11 @@ function parseRelevanceScores(response: string, count: number): {
     }
     if (idx === null || idx < 0 || idx >= count) continue;
 
-    for (const d of dims) {
-      const m = trimmed.match(d.regex);
-      if (m) {
-        const val = parseInt(m[1], 10);
-        if (val >= 0 && val <= 100) {
-          (scores[idx] as any)[d.key] = val;
-        }
+    const scoreMatch = trimmed.match(/[|｜]\s*(\d+)\s*$/);
+    if (scoreMatch) {
+      const val = parseInt(scoreMatch[1], 10);
+      if (val >= 0 && val <= 100) {
+        scores[idx] = val;
       }
     }
   }
@@ -258,24 +234,18 @@ function parseRelevanceScores(response: string, count: number): {
 }
 
 function calculateFinalScore(
-  aiScores: { relevance: number | null; quality: number | null; authority: number | null; timeliness: number | null },
+  aiScore: number | null,
   keywordOverlap: number,
   urlSignal: number,
   clickCount: number,
 ): number {
-  const rel = aiScores.relevance ?? 50;
-  const qual = aiScores.quality ?? 50;
-  const auth = aiScores.authority ?? 50;
-  const time = aiScores.timeliness ?? 50;
+  const ai = aiScore ?? 50;
   const clickBonus = Math.min(clickCount * 5, 10);
   return Math.round(
-    keywordOverlap * 0.30 +
-    rel * 0.20 +
-    qual * 0.25 +
-    auth * 0.15 +
-    time * 0.05 +
-    urlSignal * 0.05 +
-    clickBonus,
+    keywordOverlap * 0.35 +
+    ai * 0.40 +
+    urlSignal * 0.15 +
+    clickBonus * 0.10,
   );
 }
 
