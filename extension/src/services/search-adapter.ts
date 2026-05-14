@@ -7,7 +7,7 @@ export interface SearchResult {
 
 interface SearchAdapter {
   extractResults(): SearchResult[];
-  injectTag(element: HTMLElement, tags: string[]): void;
+  injectTag(element: HTMLElement, tags: string[], score?: number | null): void;
 }
 
 class GoogleAdapter implements SearchAdapter {
@@ -60,98 +60,23 @@ class GoogleAdapter implements SearchAdapter {
     return results;
   }
 
-  injectTag(element: HTMLElement, tags: string[]): void {
-    const tagContainer = document.createElement('div');
-    tagContainer.className = 'web-insight-ai-tags';
-    tagContainer.style.cssText = 'display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;';
-
-    tags.forEach((tag) => {
-      const span = document.createElement('span');
-      span.textContent = tag;
-      span.style.cssText = 'background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:12px;font-size:12px;';
-      tagContainer.appendChild(span);
-    });
-
-    const existing = element.querySelector('.web-insight-ai-tags');
-    if (existing) existing.remove();
-    element.appendChild(tagContainer);
+  injectTag(element: HTMLElement, tags: string[], score?: number | null): void {
+    injectTagsToElement(element, tags, score);
   }
 }
 
-class BingAdapter implements SearchAdapter {
-  extractResults(): SearchResult[] {
-    const results: SearchResult[] = [];
-    const items = document.querySelectorAll('#b_results .b_algo');
-    items.forEach((item) => {
-      const titleEl = item.querySelector('h2 a');
-      const descEl = item.querySelector('.b_caption p');
-
-      if (titleEl) {
-        results.push({
-          title: titleEl.textContent?.trim() || '',
-          url: (titleEl as HTMLAnchorElement).href || '',
-          description: descEl?.textContent?.trim() || '',
-          element: item as HTMLElement,
-        });
-      }
-    });
-    return results;
-  }
-
-  injectTag(element: HTMLElement, tags: string[]): void {
-    const tagContainer = document.createElement('div');
-    tagContainer.className = 'web-insight-ai-tags';
-    tagContainer.style.cssText = 'display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;';
-
-    tags.forEach((tag) => {
-      const span = document.createElement('span');
-      span.textContent = tag;
-      span.style.cssText = 'background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:12px;font-size:12px;';
-      tagContainer.appendChild(span);
-    });
-
-    const existing = element.querySelector('.web-insight-ai-tags');
-    if (existing) existing.remove();
-    element.appendChild(tagContainer);
-  }
-}
-
-class BaiduAdapter implements SearchAdapter {
-  extractResults(): SearchResult[] {
-    const results: SearchResult[] = [];
-    const items = document.querySelectorAll('#content_left .result, #content_left .c-container');
-    items.forEach((item) => {
-      const titleEl = item.querySelector('h3 a');
-      const descEl = item.querySelector('.c-abstract, .content-right_8Zs40');
-
-      if (titleEl) {
-        results.push({
-          title: titleEl.textContent?.trim() || '',
-          url: (titleEl as HTMLAnchorElement).href || '',
-          description: descEl?.textContent?.trim() || '',
-          element: item as HTMLElement,
-        });
-      }
-    });
-    return results;
-  }
-
-  injectTag(element: HTMLElement, tags: string[]): void {
-    const tagContainer = document.createElement('div');
-    tagContainer.className = 'web-insight-ai-tags';
-    tagContainer.style.cssText = 'display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;';
-
-    tags.forEach((tag) => {
-      const span = document.createElement('span');
-      span.textContent = tag;
-      span.style.cssText = 'background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:12px;font-size:12px;';
-      tagContainer.appendChild(span);
-    });
-
-    const existing = element.querySelector('.web-insight-ai-tags');
-    if (existing) existing.remove();
-    element.appendChild(tagContainer);
-  }
+function createScoreBadge(score: number): HTMLElement {
+  const span = document.createElement('span');
+  const pct = score >= 80 ? 3 : score >= 50 ? 2 : 1;
+  const colors: Record<number, [string, string]> = {
+    3: ['#e8f5e9', '#2e7d32'],
+    2: ['#fff3e0', '#e65100'],
+    1: ['#fce4ec', '#c62828'],
+  };
+  const [bg, fg] = colors[pct];
+  span.textContent = `匹配 ${score}%`;
+  span.style.cssText = `background:${bg};color:${fg};padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;`;
+  return span;
 }
 
 export class SearchEngineAdapter {
@@ -162,4 +87,75 @@ export class SearchEngineAdapter {
     if (host.includes('baidu.com')) return new BaiduAdapter();
     return null;
   }
+}
+
+class BingAdapter implements SearchAdapter {
+  extractResults(): SearchResult[] {
+    const results: SearchResult[] = [];
+    const items = document.querySelectorAll('#b_results .b_algo');
+    items.forEach((item) => {
+      const titleEl = item.querySelector('h2 a');
+      const descEl = item.querySelector('.b_caption p');
+      if (titleEl) {
+        results.push({
+          title: titleEl.textContent?.trim() || '',
+          url: (titleEl as HTMLAnchorElement).href || '',
+          description: descEl?.textContent?.trim() || '',
+          element: item as HTMLElement,
+        });
+      }
+    });
+    return results;
+  }
+
+  injectTag(element: HTMLElement, tags: string[], score?: number | null): void {
+    injectTagsToElement(element, tags, score);
+  }
+}
+
+class BaiduAdapter implements SearchAdapter {
+  extractResults(): SearchResult[] {
+    const results: SearchResult[] = [];
+    const items = document.querySelectorAll('#content_left .result, #content_left .c-container');
+    items.forEach((item) => {
+      const titleEl = item.querySelector('h3 a');
+      const descEl = item.querySelector('.c-abstract, .content-right_8Zs40');
+      if (titleEl) {
+        results.push({
+          title: titleEl.textContent?.trim() || '',
+          url: (titleEl as HTMLAnchorElement).href || '',
+          description: descEl?.textContent?.trim() || '',
+          element: item as HTMLElement,
+        });
+      }
+    });
+    return results;
+  }
+
+  injectTag(element: HTMLElement, tags: string[], score?: number | null): void {
+    injectTagsToElement(element, tags, score);
+  }
+}
+
+function injectTagsToElement(element: HTMLElement, tags: string[], score?: number | null): void {
+  const existing = element.querySelector('.web-insight-ai-tags');
+  if (existing) existing.remove();
+
+  const tagContainer = document.createElement('div');
+  tagContainer.className = 'web-insight-ai-tags';
+  tagContainer.style.cssText = 'display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;align-items:center;';
+
+  if (score !== null && score !== undefined) {
+    const badge = createScoreBadge(score);
+    tagContainer.appendChild(badge);
+  }
+
+  tags.forEach((tag) => {
+    const span = document.createElement('span');
+    span.textContent = tag;
+    span.style.cssText = 'background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:12px;font-size:12px;';
+    tagContainer.appendChild(span);
+  });
+
+  element.appendChild(tagContainer);
 }
