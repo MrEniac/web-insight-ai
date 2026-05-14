@@ -48,3 +48,7 @@ Thumbs.db
 
 # IDE specific
 *.code-workspace
+
+# Local project docs (keep locally, not in repo)
+Plan.md
+DEVELOPMENT_PLAN.md
