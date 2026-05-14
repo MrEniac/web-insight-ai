@@ -141,9 +141,14 @@ function injectTagsToElement(element: HTMLElement, tags: string[], score?: numbe
   const existing = element.querySelector('.web-insight-ai-tags');
   if (existing) existing.remove();
 
+  if (!element || !element.isConnected) {
+    console.warn('[Web Insight AI] Cannot inject tags: element not in DOM');
+    return;
+  }
+
   const tagContainer = document.createElement('div');
   tagContainer.className = 'web-insight-ai-tags';
-  tagContainer.style.cssText = 'display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;align-items:center;';
+  tagContainer.style.cssText = 'display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;align-items:center;z-index:1;position:relative;';
 
   if (score !== null && score !== undefined) {
     const badge = createScoreBadge(score);
@@ -153,9 +158,22 @@ function injectTagsToElement(element: HTMLElement, tags: string[], score?: numbe
   tags.forEach((tag) => {
     const span = document.createElement('span');
     span.textContent = tag;
-    span.style.cssText = 'background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:12px;font-size:12px;';
+    span.style.cssText = 'background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:12px;font-size:12px;white-space:nowrap;';
     tagContainer.appendChild(span);
   });
 
-  element.appendChild(tagContainer);
+  const container = findAppendTarget(element);
+  if (container) {
+    container.appendChild(tagContainer);
+  }
+}
+
+function findAppendTarget(element: HTMLElement): HTMLElement | null {
+  if (element.isConnected) return element;
+  const h3 = document.querySelector('h3');
+  if (h3) {
+    const parent = h3.closest('.g') || h3.closest('[data-hveid]') || h3.parentElement?.parentElement;
+    if (parent instanceof HTMLElement) return parent;
+  }
+  return null;
 }

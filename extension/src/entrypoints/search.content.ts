@@ -89,8 +89,14 @@ export default defineContentScript({
           const loading = result.element.querySelector('.web-insight-ai-tag-loading');
           if (loading) loading.remove();
           if (tagsMap[i] && tagsMap[i].length > 0) {
-            adapter.injectTag(result.element, tagsMap[i], scoresMap[i]);
-            processedCount++;
+            try {
+              adapter.injectTag(result.element, tagsMap[i], scoresMap[i]);
+              processedCount++;
+            } catch (e) {
+              console.warn(`[Web Insight AI] Failed to inject tags for result ${i}:`, e);
+            }
+          } else {
+            console.log(`[Web Insight AI] No tags for result ${i}: ${result.title}`);
           }
         });
 
