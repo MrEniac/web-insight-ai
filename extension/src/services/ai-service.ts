@@ -167,7 +167,7 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: false }),
+      body: JSON.stringify({ model, messages, think: false, stream: false }),
     });
 
     if (!response.ok) {
@@ -186,7 +186,7 @@ private buildGitHubPrompt(data: Record<string, unknown>): string {
     const response = await fetch(`${this.config.ollamaUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: true }),
+      body: JSON.stringify({ model, messages, think: false, stream: true }),
     });
 
     if (!response.ok) {

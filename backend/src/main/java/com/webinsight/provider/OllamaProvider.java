@@ -54,6 +54,7 @@ public class OllamaProvider implements AiModelProvider {
         body.put("model", useModel);
         body.put("messages", messages);
         body.put("stream", false);
+        body.put("think", false);
 
         HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
 
@@ -86,6 +87,7 @@ public class OllamaProvider implements AiModelProvider {
         body.put("model", useModel);
         body.put("messages", messages);
         body.put("stream", true);
+        body.put("think", false);
 
         return webClient.post()
                 .uri(ollamaUrl + "/api/chat")
@@ -124,6 +126,7 @@ public class OllamaProvider implements AiModelProvider {
         body.put("model", useModel);
         body.put("messages", messageList);
         body.put("stream", false);
+        body.put("think", false);
 
         HttpEntity<String> request = new HttpEntity<>(toJson(body), headers);
 
@@ -155,6 +158,7 @@ public class OllamaProvider implements AiModelProvider {
         body.put("model", useModel);
         body.put("messages", messageList);
         body.put("stream", true);
+        body.put("think", false);
 
         return webClient.post()
                 .uri(ollamaUrl + "/api/chat")
