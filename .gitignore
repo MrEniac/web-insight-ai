@@ -2,18 +2,22 @@
 .idea/
 .vscode/
 *.iml
+*.ipr
+*.iws
 
 # Dependencies
 node_modules/
 extension/node_modules/
 extension/dist/
 extension/.output/
+extension/.wxt/
 
 # Build output
 backend/target/
 backend/.mvn/
 *.jar
 *.class
+!backend/.mvn/wrapper/
 
 # Maven
 *.war
@@ -24,15 +28,23 @@ backend/.mvn/
 .env
 .env.local
 *.env
+!.env.example
 
 # Logs
 *.log
 npm-debug.log*
+logs/
 
 # OS
 .DS_Store
 Thumbs.db
+*.crswap
 
 # Temp
 *.tmp
 *.swp
+*.bak
+~$*
+
+# IDE specific
+*.code-workspace
