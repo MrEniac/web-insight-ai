@@ -167,14 +167,16 @@ function parseBatchResponse(response: string, count: number): string[][] {
     const numberedMatch = trimmed.match(/^(\d+)[.、)]\s*(.+)$/);
     if (numberedMatch) {
       targetIndex = parseInt(numberedMatch[1], 10) - 1;
-      tags = numberedMatch[2]
+      const cleanContent = numberedMatch[2].replace(/\s*[|｜]\s*匹配度[：:]\s*\d+\s*$/, '');
+      tags = cleanContent
         .split(/[,;，；、]/)
         .map((t) => t.trim())
         .filter((t) => t.length > 0 && t.length < 20);
     }
 
     if (!numberedMatch && seqIndex < count) {
-      const commaSplit = trimmed.split(/[,;，；、]/);
+      const cleanContent = trimmed.replace(/\s*[|｜]\s*匹配度[：:]\s*\d+\s*$/, '');
+      const commaSplit = cleanContent.split(/[,;，；、]/);
       if (commaSplit.length >= 2) {
         targetIndex = seqIndex;
         tags = commaSplit.map((t) => t.trim()).filter((t) => t.length > 0 && t.length < 20);
