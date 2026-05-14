@@ -178,4 +178,41 @@ public class AiGatewayController {
         return aiModelService.analyzeStream(aiRequest)
                 .delayElements(Duration.ofMillis(50));
     }
+
+    @PostMapping("/search/tags")
+    public AiResponse searchTags(@RequestBody java.util.Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        java.util.List<java.util.Map<String, String>> items =
+                (java.util.List<java.util.Map<String, String>>) body.get("items");
+
+        if (items == null || items.isEmpty()) {
+            return AiResponse.error("No search items provided");
+        }
+
+        String prompt = promptService.buildSearchBatchPrompt(items);
+        AiRequest aiRequest = new AiRequest();
+        aiRequest.setType("search");
+        aiRequest.setPrompt(prompt);
+
+        return aiModelService.analyze(aiRequest);
+    }
+
+    @PostMapping(value = "/search/tags/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> searchTagsStream(@RequestBody java.util.Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        java.util.List<java.util.Map<String, String>> items =
+                (java.util.List<java.util.Map<String, String>>) body.get("items");
+
+        if (items == null || items.isEmpty()) {
+            return Flux.just("data: [ERROR] No search items provided\n\n");
+        }
+
+        String prompt = promptService.buildSearchBatchPrompt(items);
+        AiRequest aiRequest = new AiRequest();
+        aiRequest.setType("search");
+        aiRequest.setPrompt(prompt);
+
+        return aiModelService.analyzeStream(aiRequest)
+                .delayElements(Duration.ofMillis(50));
+    }
 }
