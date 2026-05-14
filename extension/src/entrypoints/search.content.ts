@@ -85,7 +85,9 @@ export default defineContentScript({
         console.log('[Web Insight AI] AI response preview:', fullResponse.substring(0, 300));
 
         const tagsMap = parseBatchResponse(fullResponse, batch.length);
-        console.log('[Web Insight AI] Parsed tags map:', tagsMap.map((t) => t?.join(',') || 'empty'));
+        const aiScores = parseRelevanceScores(fullResponse, batch.length);
+        console.log('[Web Insight AI] Parsed tags:', tagsMap.map((t) => t?.join(',') || 'empty'));
+        console.log('[Web Insight AI] AI scores:', aiScores);
 
         batch.forEach((result, i) => {
           const loading = result.element.querySelector('.web-insight-ai-tag-loading');
@@ -95,8 +97,8 @@ export default defineContentScript({
               const keywordScore = computeKeywordOverlap(query, result.title, result.description);
               const urlSignal = computeUrlSignal(result.url);
               const clickCount = clicks[result.url] || 0;
-              const finalScore = calculateFinalScore(keywordScore, urlSignal, clickCount);
-              console.log(`[Web Insight AI] Result ${i}: kw=${keywordScore} url=${urlSignal} clicks=${clickCount} final=${finalScore}`);
+              const finalScore = calculateFinalScore(keywordScore, urlSignal, aiScores[i] ?? 50, clickCount);
+              console.log(`[Web Insight AI] Result ${i}: ai=${aiScores[i]} kw=${keywordScore} url=${urlSignal} final=${finalScore}`);
               adapter.injectTag(result.element, tagsMap[i], finalScore);
               processedCount++;
             } catch (e) {
@@ -146,14 +148,14 @@ function buildSearchBatchPrompt(results: Array<{ title: string; url: string; des
     .map((r, i) => `结果${i + 1}：\n标题：${r.title}\nURL：${r.url}\n描述：${r.description || '无'}`)
     .join('\n\n');
 
-  return `你是一个搜索结果分析助手。用户搜索了：「${query}」。请根据以下 ${results.length} 条搜索结果的信息，为每条结果生成 2-3 个简短的标签（中文），描述该链接的质量和类型。
+  return `你是一个搜索结果分析助手。用户搜索了：「${query}」。请根据以下 ${results.length} 条搜索结果的信息，为每条结果生成 2-3 个简短的标签（中文），并评估与搜索意图的综合相关度（0-100分）。
 
 ${items}
 
-请严格按以下格式输出（每条结果一行）：
-1. 标签1, 标签2, 标签3
-2. 标签1, 标签2, 标签3
-${results.length}. 标签1, 标签2, 标签3`;
+请严格按以下格式输出（每条一行，标签后用 | 分隔分数）：
+1. 标签1, 标签2, 标签3 | 85
+2. 标签1, 标签2, 标签3 | 60
+${results.length}. 标签1, 标签2, 标签3 | 分数`;
 }
 
 function parseBatchResponse(response: string, count: number): string[][] {
@@ -205,14 +207,38 @@ function parseBatchResponse(response: string, count: number): string[][] {
 function calculateFinalScore(
   keywordOverlap: number,
   urlSignal: number,
+  aiScore: number,
   clickCount: number,
 ): number {
   const clickBonus = Math.min(clickCount * 5, 10);
   return Math.round(
-    keywordOverlap * 0.45 +
-    urlSignal * 0.45 +
+    aiScore * 0.40 +
+    keywordOverlap * 0.25 +
+    urlSignal * 0.25 +
     clickBonus * 0.10,
   );
+}
+
+function parseRelevanceScores(response: string, count: number): (number | null)[] {
+  const scores: (number | null)[] = new Array(count).fill(null);
+  const lines = response.split('\n');
+  let seqIndex = 0;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const numMatch = trimmed.match(/^(\d+)[.、)]/);
+    let idx: number | null = null;
+    if (numMatch) idx = parseInt(numMatch[1], 10) - 1;
+    else if (seqIndex < count) idx = seqIndex++;
+    if (idx === null || idx < 0 || idx >= count) continue;
+    const scoreMatch = trimmed.match(/[|｜]\s*(\d+)\s*$/);
+    if (scoreMatch) {
+      const val = parseInt(scoreMatch[1], 10);
+      if (val >= 0 && val <= 100) scores[idx] = val;
+    }
+  }
+  return scores;
 }
 
 function computeKeywordOverlap(query: string, title: string, description: string): number {
